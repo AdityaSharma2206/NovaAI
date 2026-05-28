@@ -10,6 +10,14 @@ function Chat() {
     const [latestReply, setLatestReply] = useState(null);
     const chatEndRef = useRef(null);
 
+    const copyToClipboard = async (text) => {
+    try {
+        await navigator.clipboard.writeText(text);
+    } catch(err) {
+        console.log(err);
+    }
+}
+
     // Auto-scroll to the bottom when messages update
     const scrollToBottom = () => {
         chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -59,9 +67,19 @@ function Chat() {
                             {chat.role === "user" ? (
                                 <p className="user-text">{chat.content}</p>
                             ) : (
-                                <ReactMarkdown rehypePlugins={[rehypeHighlight]}>
-                                    {chat.content}
-                                </ReactMarkdown>
+                                <>
+                                    <ReactMarkdown rehypePlugins={[rehypeHighlight]}>
+                                        {chat.content}
+                                    </ReactMarkdown>
+
+                                    <button
+                                        className="copy-btn"
+                                        onClick={() => copyToClipboard(chat.content)}
+                                    >
+                                        <i className="fa-regular fa-copy"></i>
+                                    </button>
+                                </>
+                                
                             )}
                         </div>
                     </div>
@@ -71,9 +89,26 @@ function Chat() {
                 {prevChats.length > 0 && (
                     <div className="message-wrapper ai" key="typing-indicator">
                         <div className="message-content ai-markdown">
-                            <ReactMarkdown rehypePlugins={[rehypeHighlight]}>
-                                {latestReply === null ? prevChats[prevChats.length-1].content : latestReply}
-                            </ReactMarkdown>
+                            <>
+                                <ReactMarkdown rehypePlugins={[rehypeHighlight]}>
+                                    {latestReply === null
+                                        ? prevChats[prevChats.length-1].content
+                                        : latestReply}
+                                </ReactMarkdown>
+
+                                <button
+                                    className="copy-btn"
+                                    onClick={() =>
+                                        copyToClipboard(
+                                            latestReply === null
+                                                ? prevChats[prevChats.length-1].content
+                                                : latestReply
+                                        )
+                                    }
+                                >
+                                    <i className="fa-regular fa-copy"></i>
+                                </button>
+                            </>
                         </div>
                     </div>
                 )}

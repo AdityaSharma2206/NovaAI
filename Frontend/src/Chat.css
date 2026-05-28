@@ -61,6 +61,20 @@
     color: var(--text-primary);
 }
 
+
+.copy-btn{
+    margin-top: 10px;
+    border: none;
+    background: transparent;
+    color: gray;
+    cursor: pointer;
+    font-size: 14px;
+    transition: 0.2s;
+}
+
+.copy-btn:hover{
+    color: white;
+}
 /* User Message Styling */
 .user .message-content {
     background-color: var(--bg-surface);

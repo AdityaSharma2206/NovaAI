@@ -59,7 +59,7 @@ function ChatWindow() {
         <div className="chatWindow">
             {/* Navbar Section */}
             <div className="navbar">
-                <span className="brand">Nexus <i className="fa-solid fa-chevron-down"></i></span>
+                <span className="brand">NovaChat <i className="fa-solid fa-chevron-down"></i></span>
                 <div className="userIconDiv" onClick={handleProfileClick}>
                     <span className="userIcon"><i className="fa-solid fa-user"></i></span>
                 </div>
@@ -96,7 +96,7 @@ function ChatWindow() {
                     </button>
                 </div>
                 <p className="info">
-                    SigmaGPT can make mistakes. Check important info.
+                    NovaChat can make mistakes. Check important info.
                 </p>
             </div>
         </div>
