@@ -1,23 +1,34 @@
 import "./Chat.css";
-import React, { useContext, useState, useEffect } from "react";
+import React, { useContext, useState, useEffect, useRef } from "react";
 import { MyContext } from "./MyContext";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import "highlight.js/styles/github-dark.css";
 
 function Chat() {
-    const {newChat, prevChats, reply} = useContext(MyContext);
+    const { newChat, prevChats, reply } = useContext(MyContext);
     const [latestReply, setLatestReply] = useState(null);
+    const chatEndRef = useRef(null);
+
+    // Auto-scroll to the bottom when messages update
+    const scrollToBottom = () => {
+        chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
 
     useEffect(() => {
+        scrollToBottom();
+    }, [prevChats, latestReply]);
+
+    // Typing effect logic
+    useEffect(() => {
         if(reply === null) {
-            setLatestReply(null); //prevchat load
+            setLatestReply(null); 
             return;
         }
 
         if(!prevChats?.length) return;
 
-        const content = reply.split(" "); //individual words
+        const content = reply.split(" "); 
 
         let idx = 0;
         const interval = setInterval(() => {
@@ -29,45 +40,48 @@ function Chat() {
 
         return () => clearInterval(interval);
 
-    }, [prevChats, reply])
+    }, [prevChats, reply]);
 
     return (
-        <>
-            {newChat && <h1>Start a New Chat!</h1>}
+        <div className="chats-container">
+            {newChat && (
+                <div className="empty-state">
+                    <img src="src/assets/blacklogo.png" alt="SigmaGPT Logo" className="empty-logo" />
+                    <h1>How can I help you today?</h1>
+                </div>
+            )}
+            
             <div className="chats">
-                {
-                    prevChats?.slice(0, -1).map((chat, idx) => 
-                        <div className={chat.role === "user"? "userDiv" : "gptDiv"} key={idx}>
-                            {
-                                chat.role === "user"? 
-                                <p className="userMessage">{chat.content}</p> : 
-                                <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{chat.content}</ReactMarkdown>
-                            }
+                {/* Previous messages (all except the one currently typing) */}
+                {prevChats?.slice(0, -1).map((chat, idx) => 
+                    <div className={`message-wrapper ${chat.role === "user" ? "user" : "ai"}`} key={idx}>
+                        <div className="message-content">
+                            {chat.role === "user" ? (
+                                <p className="user-text">{chat.content}</p>
+                            ) : (
+                                <ReactMarkdown rehypePlugins={[rehypeHighlight]}>
+                                    {chat.content}
+                                </ReactMarkdown>
+                            )}
                         </div>
-                    )
-                }
+                    </div>
+                )}
 
-                {
-                    prevChats.length > 0  && (
-                        <>
-                            {
-                                latestReply === null ? (
-                                    <div className="gptDiv" key={"non-typing"} >
-                                    <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{prevChats[prevChats.length-1].content}</ReactMarkdown>
-                                </div>
-                                ) : (
-                                    <div className="gptDiv" key={"typing"} >
-                                     <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{latestReply}</ReactMarkdown>
-                                </div>
-                                )
-
-                            }
-                        </>
-                    )
-                }
-
+                {/* The latest AI message (typing or finished) */}
+                {prevChats.length > 0 && (
+                    <div className="message-wrapper ai" key="typing-indicator">
+                        <div className="message-content ai-markdown">
+                            <ReactMarkdown rehypePlugins={[rehypeHighlight]}>
+                                {latestReply === null ? prevChats[prevChats.length-1].content : latestReply}
+                            </ReactMarkdown>
+                        </div>
+                    </div>
+                )}
+                
+                {/* Invisible div to scroll to */}
+                <div ref={chatEndRef} />
             </div>
-        </>
+        </div>
     )
 }
 

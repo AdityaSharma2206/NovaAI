@@ -1,7 +1,6 @@
 import "dotenv/config";
 
-console.log(process.env.OPENAI_API_KEY);
-const getOpenAIAPIResponse = async(message) => {
+const getOpenAIAPIResponse = async(messages) => {
 
     const options = {
         method: "POST",
@@ -11,10 +10,7 @@ const getOpenAIAPIResponse = async(message) => {
         },
         body: JSON.stringify({
             model: process.env.OPENAI_MODEL,
-            messages: [{
-                role: "user",
-                content: messages
-            }]
+            messages: messages
         })
     };
 
@@ -36,7 +32,9 @@ const getOpenAIAPIResponse = async(message) => {
         return data.choices[0].message.content;
 
     } catch(err) {
+
         console.log("OPENAI ERROR:", err.message);
+
         return "Sorry, something went wrong.";
     }
 }

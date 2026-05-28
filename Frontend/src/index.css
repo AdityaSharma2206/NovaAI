@@ -1,0 +1,33 @@
+/* index.css */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+
+:root {
+  /* Color Palette - Deep sleek dark mode with Indigo accents */
+  --bg-main: #0B0F19;         /* Very dark navy/black for the chat area */
+  --bg-sidebar: #131A2A;      /* Slightly lighter for the sidebar */
+  --bg-surface: #1E293B;      /* For chat bubbles and input areas */
+  
+  --text-primary: #F8FAFC;    /* Crisp white for readability */
+  --text-secondary: #94A3B8;  /* Muted gray-blue for timestamps/subtext */
+  
+  --accent-primary: #6366F1;  /* Vibrant Indigo for buttons/user messages */
+  --accent-hover: #4F46E5;
+  --border-subtle: #1E293B;   /* Soft borders to separate elements cleanly */
+
+  --font-main: 'Inter', Roboto, 'Helvetica Neue', sans-serif;
+}
+
+/* Modern Reset */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-main);
+  color: var(--text-primary);
+  font-family: var(--font-main);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

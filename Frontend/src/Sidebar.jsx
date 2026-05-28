@@ -11,7 +11,6 @@ function Sidebar() {
             const response = await fetch("http://localhost:8080/api/thread");
             const res = await response.json();
             const filteredData = res.map(thread => ({threadId: thread.threadId, title: thread.title}));
-            //console.log(filteredData);
             setAllThreads(filteredData);
         } catch(err) {
             console.log(err);
@@ -21,7 +20,6 @@ function Sidebar() {
     useEffect(() => {
         getAllThreads();
     }, [currThreadId])
-
 
     const createNewChat = () => {
         setNewChat(true);
@@ -33,11 +31,9 @@ function Sidebar() {
 
     const changeThread = async (newThreadId) => {
         setCurrThreadId(newThreadId);
-
         try {
             const response = await fetch(`http://localhost:8080/api/thread/${newThreadId}`);
             const res = await response.json();
-            console.log(res);
             setPrevChats(res);
             setNewChat(false);
             setReply(null);
@@ -48,17 +44,14 @@ function Sidebar() {
 
     const deleteThread = async (threadId) => {
         try {
-            const response = await fetch(`http://localhost:8080/api/thread/${threadId}`, {method: "DELETE"});
-            const res = await response.json();
-            console.log(res);
-
-            //updated threads re-render
+            await fetch(`http://localhost:8080/api/thread/${threadId}`, {method: "DELETE"});
+            
+            // Updated threads re-render
             setAllThreads(prev => prev.filter(thread => thread.threadId !== threadId));
 
             if(threadId === currThreadId) {
                 createNewChat();
             }
-
         } catch(err) {
             console.log(err);
         }
@@ -66,29 +59,31 @@ function Sidebar() {
 
     return (
         <section className="sidebar">
-            <button onClick={createNewChat}>
-                <img src="src/assets/blacklogo.png" alt="gpt logo" className="logo"></img>
-                <span><i className="fa-solid fa-pen-to-square"></i></span>
-            </button>
-
+            <div className="sidebar-header">
+                <button className="new-chat-btn" onClick={createNewChat}>
+                    <div className="btn-left">
+                        <img src="src/assets/blacklogo.png" alt="logo" className="logo" />
+                        <span className="btn-text">New Chat</span>
+                    </div>
+                    <i className="fa-solid fa-pen-to-square"></i>
+                </button>
+            </div>
 
             <ul className="history">
-                {
-                    allThreads?.map((thread, idx) => (
-                        <li key={idx} 
-                            onClick={(e) => changeThread(thread.threadId)}
-                            className={thread.threadId === currThreadId ? "highlighted": " "}
-                        >
-                            {thread.title}
-                            <i className="fa-solid fa-trash"
-                                onClick={(e) => {
-                                    e.stopPropagation(); //stop event bubbling
-                                    deleteThread(thread.threadId);
-                                }}
-                            ></i>
-                        </li>
-                    ))
-                }
+                {allThreads?.map((thread) => (
+                    <li key={thread.threadId} 
+                        onClick={() => changeThread(thread.threadId)}
+                        className={thread.threadId === currThreadId ? "highlighted" : ""}
+                    >
+                        <span className="thread-title">{thread.title}</span>
+                        <i className="fa-solid fa-trash"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                deleteThread(thread.threadId);
+                            }}
+                        ></i>
+                    </li>
+                ))}
             </ul>
  
             <div className="sign">

@@ -1,34 +1,140 @@
-.chats {
-    max-width: 700px;
-    overflow-y: scroll;
-    padding: 8rem;
-}
-
-.userDiv {
+.chats-container {
+    width: 100%;
     display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 0 20px 0;
+}
+
+/* New Chat Empty State */
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 50vh;
+    color: var(--text-primary);
+}
+
+.empty-logo {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background-color: #fff;
+    padding: 12px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+}
+
+.empty-state h1 {
+    font-size: 24px;
+    font-weight: 500;
+}
+
+/* Chat Message Layout */
+.chats {
+    width: 100%;
+    max-width: 750px; /* Matches the input box width */
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+    padding: 0 24px;
+}
+
+.message-wrapper {
+    display: flex;
+    width: 100%;
+}
+
+.message-wrapper.user {
     justify-content: flex-end;
-    font-size: 0.9rem;
 }
 
-
-.gptDiv {
-    text-align: left;
-    font-size: 0.9rem;
+.message-wrapper.ai {
+    justify-content: flex-start;
 }
 
-.userMessage {
-    background-color: #323232;
-    padding: 10px 20px;
-    border-radius: 14px;
-    margin-left: 15rem;
-    max-width: 500px;
-    width: fit-content;
+.message-content {
+    max-width: 85%;
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--text-primary);
 }
 
-.hljs {
-    border-radius: 14px !important;
+/* User Message Styling */
+.user .message-content {
+    background-color: var(--bg-surface);
+    padding: 12px 20px;
+    border-radius: 20px;
+    border-bottom-right-radius: 4px; /* Gives a chat-bubble tail effect */
+    border: 1px solid var(--border-subtle);
 }
 
-pre {
+.user-text {
+    margin: 0;
     white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+/* AI Message Styling (Markdown Support) */
+.ai .message-content {
+    padding: 4px 0;
+}
+
+.ai-markdown p {
+    margin-top: 0;
+    margin-bottom: 16px;
+}
+
+.ai-markdown p:last-child {
+    margin-bottom: 0;
+}
+
+/* Code Block Enhancements */
+.ai-markdown pre {
+    background-color: #0d1117; /* Matches github-dark */
+    padding: 16px;
+    border-radius: 12px;
+    overflow-x: auto;
+    border: 1px solid var(--border-subtle);
+    margin: 16px 0;
+}
+
+.ai-markdown code {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 13.5px;
+}
+
+/* Inline code highlighting */
+.ai-markdown p code, .ai-markdown li code {
+    background-color: var(--bg-surface);
+    padding: 3px 6px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--accent-primary);
+}
+
+/* Clean up highlight.js default padding */
+.hljs {
+    background: transparent !important;
+    padding: 0 !important;
+}
+
+/* Lists and Links */
+.ai-markdown ul, .ai-markdown ol {
+    margin: 10px 0;
+    padding-left: 20px;
+}
+
+.ai-markdown li {
+    margin-bottom: 8px;
+}
+
+.ai-markdown a {
+    color: var(--accent-primary);
+    text-decoration: none;
+}
+
+.ai-markdown a:hover {
+    text-decoration: underline;
 }
