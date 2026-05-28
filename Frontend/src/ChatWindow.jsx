@@ -5,12 +5,18 @@ import { useContext, useState, useEffect } from "react";
 import { ScaleLoader } from "react-spinners";
 
 function ChatWindow() {
-    const {prompt, setPrompt, reply, setReply, currThreadId, setPrevChats, setNewChat} = useContext(MyContext);
+    // 1. ADD setAllThreads and newChat here
+    const { prompt, setPrompt, reply, setReply, currThreadId, setPrevChats, newChat, setNewChat, setAllThreads } = useContext(MyContext);
     const [loading, setLoading] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
 
     const getReply = async () => {
-        if (!prompt.trim()) return; // Prevent empty submissions
+        if (!prompt.trim()) return;
+
+        // CAPTURE state before we change it
+        const isFirstMessage = newChat;
+        const fallbackTitle = prompt; // Just in case the API is slow or fails
+
         setLoading(true);
         setNewChat(false);
 
@@ -28,7 +34,20 @@ function ChatWindow() {
         try {
             const response = await fetch("http://localhost:8080/api/chat", options);
             const res = await response.json();
+            
             setReply(res.reply);
+
+            // UPDATE SIDEBAR: Use the AI-generated title sent from the backend!
+            if (isFirstMessage) {
+                setAllThreads(prevThreads => [
+                    { 
+                        threadId: currThreadId, 
+                        title: res.title || fallbackTitle // Grabs the AI title, falls back to prompt if missing
+                    },
+                    ...prevThreads
+                ]);
+            }
+
         } catch(err) {
             console.log(err);
         }
@@ -59,7 +78,7 @@ function ChatWindow() {
         <div className="chatWindow">
             {/* Navbar Section */}
             <div className="navbar">
-                <span className="brand">NovaChat <i className="fa-solid fa-chevron-down"></i></span>
+                <span className="brand">NovaAI <i className="fa-solid fa-chevron-down"></i></span>
                 <div className="userIconDiv" onClick={handleProfileClick}>
                     <span className="userIcon"><i className="fa-solid fa-user"></i></span>
                 </div>
@@ -96,7 +115,7 @@ function ChatWindow() {
                     </button>
                 </div>
                 <p className="info">
-                    NovaChat can make mistakes. Check important info.
+                    NovaAI can make mistakes. Check important info.
                 </p>
             </div>
         </div>

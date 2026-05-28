@@ -249,7 +249,8 @@ router.post("/chat", async(req, res) => {
         // ==============================
 
         res.json({
-            reply: assistantReply
+            reply: assistantReply,
+            title: thread.title
         });
 
     } catch(err) {
