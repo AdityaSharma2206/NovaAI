@@ -6,7 +6,6 @@
     padding: 40px 0 20px 0;
 }
 
-/* New Chat Empty State */
 .empty-state {
     display: flex;
     flex-direction: column;
@@ -31,10 +30,9 @@
     font-weight: 500;
 }
 
-/* Chat Message Layout */
 .chats {
     width: 100%;
-    max-width: 750px; /* Matches the input box width */
+    max-width: 750px; 
     display: flex;
     flex-direction: column;
     gap: 32px;
@@ -56,31 +54,57 @@
 
 .message-content {
     max-width: 85%;
+    width: 100%; /* FIX: Ensure container stretches appropriately */
     font-size: 15px;
     line-height: 1.6;
     color: var(--text-primary);
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
 }
 
+/* FIX: Forces flexbox to stay inside the screen and stack vertically */
+.markdown-wrapper {
+    min-width: 0; 
+    flex-grow: 1;
+    width: 100%;
+    overflow-wrap: break-word;
+}
 
-.copy-btn{
+.copy-btn {
+    opacity: 0; 
     margin-top: 10px;
     border: none;
     background: transparent;
-    color: gray;
+    color: var(--text-secondary);
     cursor: pointer;
     font-size: 14px;
-    transition: 0.2s;
+    padding: 6px 8px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    flex-shrink: 0; /* FIX: Prevents the copy button from being squished */
 }
 
-.copy-btn:hover{
-    color: white;
+.message-wrapper:hover .copy-btn {
+    opacity: 1;
 }
-/* User Message Styling */
+
+.copy-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-surface);
+}
+
+.user-copy {
+    margin-left: auto;
+    margin-top: 10px;
+}
+
 .user .message-content {
     background-color: var(--bg-surface);
     padding: 12px 20px;
     border-radius: 20px;
-    border-bottom-right-radius: 4px; /* Gives a chat-bubble tail effect */
+    border-bottom-right-radius: 4px;
     border: 1px solid var(--border-subtle);
 }
 
@@ -90,7 +114,6 @@
     word-wrap: break-word;
 }
 
-/* AI Message Styling (Markdown Support) */
 .ai .message-content {
     padding: 4px 0;
 }
@@ -104,12 +127,11 @@
     margin-bottom: 0;
 }
 
-/* Code Block Enhancements */
 .ai-markdown pre {
-    background-color: #0d1117; /* Matches github-dark */
+    background-color: #0d1117; 
     padding: 16px;
     border-radius: 12px;
-    overflow-x: auto;
+    overflow-x: auto; /* FIX: Allows long code lines to scroll horizontally */
     border: 1px solid var(--border-subtle);
     margin: 16px 0;
 }
@@ -119,7 +141,6 @@
     font-size: 13.5px;
 }
 
-/* Inline code highlighting */
 .ai-markdown p code, .ai-markdown li code {
     background-color: var(--bg-surface);
     padding: 3px 6px;
@@ -128,13 +149,11 @@
     color: var(--accent-primary);
 }
 
-/* Clean up highlight.js default padding */
 .hljs {
     background: transparent !important;
     padding: 0 !important;
 }
 
-/* Lists and Links */
 .ai-markdown ul, .ai-markdown ol {
     margin: 10px 0;
     padding-left: 20px;

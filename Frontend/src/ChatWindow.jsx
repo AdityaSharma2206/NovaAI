@@ -1,14 +1,17 @@
 import "./ChatWindow.css";
 import Chat from "./Chat.jsx";
 import { MyContext } from "./MyContext.jsx";
-import { useContext, useState, useEffect } from "react";
+import { useContext, useState, useEffect, useRef } from "react";
 import { ScaleLoader } from "react-spinners";
 
 function ChatWindow() {
-    const { prompt, setPrompt, reply, setReply, currThreadId, setPrevChats, newChat,setThreadProfile, setNewChat, setAllThreads, threadProfile } = useContext(MyContext);
+    const { prompt, setPrompt, reply, setReply, currThreadId, setPrevChats, newChat, setThreadProfile, setNewChat, setAllThreads, threadProfile } = useContext(MyContext);
     const [loading, setLoading] = useState(false);
-    const [isOpen, setIsOpen] = useState(false); // Controls the new side-drawer
-    // NEW: Function to silently grab the latest profile from the DB
+    const [isOpen, setIsOpen] = useState(false);
+    
+    // NEW: Reference for the auto-expanding textarea
+    const textareaRef = useRef(null);
+
     const fetchLatestProfile = async () => {
         try {
             const response = await fetch(`http://localhost:8080/api/thread/${currThreadId}`);
@@ -64,19 +67,22 @@ function ChatWindow() {
             ));
         }
         setPrompt("");
+        
+        // NEW: Reset textarea height back to default after message sends
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+        }
     }, [reply]);
 
     return (
         <div className="chatWindow">
             <div className="navbar">
                 <span className="brand">NovaAI <i className="fa-solid fa-chevron-down"></i></span>
-                {/* Toggle Drawer Button */}
                 <div className="userIconDiv" onClick={() => { fetchLatestProfile(); setIsOpen(true); }} title="View AI Memory">
                     <span className="userIcon"><i className="fa-solid fa-brain"></i></span>
                 </div>
             </div>
 
-            {/* AI INSIGHTS SLIDING DRAWER */}
             {isOpen && <div className="drawer-overlay" onClick={() => setIsOpen(false)}></div>}
             <div className={`insights-drawer ${isOpen ? 'open' : ''}`}>
                 <div className="drawer-header">
@@ -89,7 +95,6 @@ function ChatWindow() {
                 <div className="drawer-body">
                     <p className="insight-sub">Real-time context extracted via RAG pipeline.</p>
                     
-                    {/* Active Context Card */}
                     <div className="insight-section">
                         <h5><i className="fa-solid fa-crosshairs"></i> Active Context</h5>
                         <div className="context-card">
@@ -97,7 +102,6 @@ function ChatWindow() {
                         </div>
                     </div>
 
-                    {/* User Facts (Rendered as Chips) */}
                     <div className="insight-section">
                         <h5><i className="fa-solid fa-database"></i> Known Facts</h5>
                         <div className="chip-container">
@@ -111,7 +115,6 @@ function ChatWindow() {
                         </div>
                     </div>
 
-                    {/* Preferences (Rendered as Chips) */}
                     <div className="insight-section">
                         <h5><i className="fa-solid fa-sliders"></i> Preferences</h5>
                         <div className="chip-container">
@@ -136,11 +139,23 @@ function ChatWindow() {
             
             <div className="chatInputWrapper">
                 <div className="inputBox">
-                    <input 
-                        placeholder="Ask anything..."
+                    {/* NEW: Auto-expanding textarea replaces standard input */}
+                    <textarea 
+                        ref={textareaRef}
+                        placeholder="Ask anything... (Shift + Enter for new line)"
                         value={prompt}
-                        onChange={(e) => setPrompt(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' ? getReply() : ''}
+                        rows={1}
+                        onChange={(e) => {
+                            setPrompt(e.target.value);
+                            e.target.style.height = 'auto';
+                            e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
+                        }}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                if (prompt.trim() && !loading) getReply();
+                            }
+                        }}
                     />
                     <button id="submit" onClick={getReply} disabled={!prompt.trim() || loading}>
                         <i className="fa-solid fa-paper-plane"></i>
