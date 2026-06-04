@@ -5,9 +5,21 @@ import { useContext, useState, useEffect } from "react";
 import { ScaleLoader } from "react-spinners";
 
 function ChatWindow() {
-    const { prompt, setPrompt, reply, setReply, currThreadId, setPrevChats, newChat, setNewChat, setAllThreads, threadProfile } = useContext(MyContext);
+    const { prompt, setPrompt, reply, setReply, currThreadId, setPrevChats, newChat,setThreadProfile, setNewChat, setAllThreads, threadProfile } = useContext(MyContext);
     const [loading, setLoading] = useState(false);
     const [isOpen, setIsOpen] = useState(false); // Controls the new side-drawer
+    // NEW: Function to silently grab the latest profile from the DB
+    const fetchLatestProfile = async () => {
+        try {
+            const response = await fetch(`http://localhost:8080/api/thread/${currThreadId}`);
+            const res = await response.json();
+            if (res.profile) {
+                setThreadProfile(res.profile);
+            }
+        } catch(err) {
+            console.log("Failed to fetch background profile:", err);
+        }
+    };
 
     const getReply = async () => {
         if (!prompt.trim()) return;
@@ -29,6 +41,9 @@ function ChatWindow() {
             const res = await response.json();
             
             setReply(res.reply);
+            setTimeout(() => {
+                fetchLatestProfile();
+            }, 3000);
 
             if (isFirstMessage) {
                 setAllThreads(prevThreads => [
@@ -56,7 +71,7 @@ function ChatWindow() {
             <div className="navbar">
                 <span className="brand">NovaAI <i className="fa-solid fa-chevron-down"></i></span>
                 {/* Toggle Drawer Button */}
-                <div className="userIconDiv" onClick={() => setIsOpen(true)} title="View AI Memory">
+                <div className="userIconDiv" onClick={() => { fetchLatestProfile(); setIsOpen(true); }} title="View AI Memory">
                     <span className="userIcon"><i className="fa-solid fa-brain"></i></span>
                 </div>
             </div>

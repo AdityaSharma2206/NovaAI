@@ -72,11 +72,26 @@ router.get("/thread", async(req, res) => {
 
 router.get("/thread/:threadId", async(req, res) => {
     const {threadId} = req.params;
+    
     try {
         const thread = await Thread.findOne({threadId});
-        if(!thread) return res.status(404).json({ error: "Thread not found" });
-        res.json({ messages: thread.messages, profile: thread.profile || {} });
-    } catch(err) { res.status(500).json({ error: "Failed to fetch chat" }); }
+        
+        if(!thread) {
+            return res.status(404).json({ error: "Thread not found" });
+        }
+
+        // THE FIX: Filter out the system message before sending to React!
+        const visibleMessages = thread.messages.filter(msg => msg.role !== "system");
+
+        res.json({
+            messages: visibleMessages, 
+            profile: thread.profile || {} 
+        });
+
+    } catch(err) {
+        console.log(err);
+        res.status(500).json({ error: "Failed to fetch chat" });
+    }
 });
 
 router.delete("/thread/:threadId", async(req, res) => {
