@@ -5,6 +5,7 @@
     display: flex;
     flex-direction: column;
     position: relative;
+    overflow: hidden; /* Prevents drawer from causing scrollbars */
 }
 
 /* Navbar */
@@ -49,57 +50,13 @@
     align-items: center;
     justify-content: center;
     font-size: 14px;
-    transition: background-color 0.2s ease;
+    transition: all 0.2s ease;
 }
 
 .userIcon:hover {
     background-color: var(--accent-hover);
-}
-
-/* Dropdown */
-.dropDown {
-    position: absolute;
-    top: 65px;
-    right: 20px;
-    width: 180px;
-    background-color: var(--bg-surface);
-    padding: 8px;
-    border-radius: 12px;
-    text-align: left;
-    z-index: 1000;
-    border: 1px solid var(--border-subtle);
-    box-shadow: 0px 10px 25px rgba(0, 0, 0, 0.5);
-}
-
-.dropDownItem {
-    font-size: 14px;
-    color: var(--text-primary);
-    margin: 2px 0;
-    padding: 10px 12px;
-    cursor: pointer;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    transition: background-color 0.2s ease;
-}
-
-.dropDownItem i {
-    color: var(--text-secondary);
-    width: 16px;
-    text-align: center;
-}
-
-.dropDownItem:hover {
-    background-color: var(--bg-main);
-}
-
-.dropDownItem.logout:hover {
-    color: #ef4444;
-}
-
-.dropDownItem.logout:hover i {
-    color: #ef4444;
+    transform: scale(1.05);
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
 }
 
 /* Chat Middle Section */
@@ -138,19 +95,19 @@
 
 .inputBox {
     width: 100%;
-    max-width: 750px; /* Limits width on wide screens */
+    max-width: 750px; 
     position: relative;
     display: flex;
     align-items: center;
     background-color: var(--bg-surface);
     border: 1px solid var(--border-subtle);
-    border-radius: 24px; /* Pill shape */
+    border-radius: 24px; 
     padding: 4px 8px;
     transition: border-color 0.2s ease;
 }
 
 .inputBox:focus-within {
-    border-color: var(--accent-primary); /* Glow effect when typing */
+    border-color: var(--accent-primary); 
 }
 
 input {
@@ -202,4 +159,147 @@ input::placeholder {
     margin-top: 12px;
     color: var(--text-secondary);
     text-align: center;
+}
+
+
+/* =========================================
+   ENTERPRISE AI INSIGHTS DRAWER (NEW)
+========================================= */
+
+.drawer-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 1000;
+}
+
+.insights-drawer {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 360px;
+    height: 100vh;
+    background: rgba(30, 30, 36, 0.95); /* Deep dark theme */
+    backdrop-filter: blur(12px);
+    border-left: 1px solid var(--border-subtle);
+    box-shadow: -5px 0 25px rgba(0, 0, 0, 0.5);
+    z-index: 1001;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.insights-drawer.open {
+    transform: translateX(0);
+}
+
+.drawer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.drawer-header h4 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.drawer-header h4 i {
+    color: var(--accent-primary);
+}
+
+.close-drawer {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.close-drawer:hover {
+    color: var(--text-primary);
+}
+
+.drawer-body {
+    padding: 24px;
+    overflow-y: auto;
+    flex-grow: 1;
+}
+
+.insight-sub {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+    line-height: 1.4;
+}
+
+.insight-section {
+    margin-bottom: 28px;
+}
+
+.insight-section h5 {
+    margin: 0 0 12px 0;
+    color: #e2e8f0;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+}
+
+.insight-section h5 i {
+    color: #94a3b8;
+    font-size: 0.8rem;
+}
+
+.context-card {
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--accent-primary);
+    padding: 14px;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    line-height: 1.5;
+}
+
+.chip-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.ui-chip {
+    padding: 6px 12px;
+    border-radius: 16px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.fact-chip {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #e2e8f0;
+}
+
+.pref-chip {
+    background: rgba(56, 189, 248, 0.1); /* Subtle blue */
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    color: #38bdf8;
+}
+
+.empty-text {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    font-style: italic;
 }

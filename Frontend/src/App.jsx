@@ -1,3 +1,4 @@
+// App.jsx (Updated Snippet)
 import './App.css';
 import Sidebar from "./Sidebar.jsx";
 import ChatWindow from "./ChatWindow.jsx";
@@ -9,9 +10,12 @@ function App() {
   const [prompt, setPrompt] = useState("");
   const [reply, setReply] = useState(null);
   const [currThreadId, setCurrThreadId] = useState(uuidv1());
-  const [prevChats, setPrevChats] = useState([]); //stores all chats of curr threads
+  const [prevChats, setPrevChats] = useState([]); 
   const [newChat, setNewChat] = useState(true);
   const [allThreads, setAllThreads] = useState([]);
+  
+  // NEW: State to hold the AI's learned profile for the current chat
+  const [threadProfile, setThreadProfile] = useState(null);
 
   const providerValues = {
     prompt, setPrompt,
@@ -19,7 +23,8 @@ function App() {
     currThreadId, setCurrThreadId,
     newChat, setNewChat,
     prevChats, setPrevChats,
-    allThreads, setAllThreads
+    allThreads, setAllThreads,
+    threadProfile, setThreadProfile // <-- ADDED HERE
   }; 
 
   return (
@@ -32,4 +37,4 @@ function App() {
   )
 }
 
-export default App
+export default App;

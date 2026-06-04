@@ -4,7 +4,8 @@ import { MyContext } from "./MyContext.jsx";
 import {v1 as uuidv1} from "uuid";
 
 function Sidebar() {
-    const {allThreads, setAllThreads, currThreadId, setNewChat, setPrompt, setReply, setCurrThreadId, setPrevChats} = useContext(MyContext);
+    // Only ONE useContext declaration here! We added setThreadProfile to it.
+    const {allThreads, setAllThreads, currThreadId, setNewChat, setPrompt, setReply, setCurrThreadId, setPrevChats, setThreadProfile} = useContext(MyContext);
 
     const getAllThreads = async () => {
         try {
@@ -29,12 +30,17 @@ function Sidebar() {
         setPrevChats([]);
     }
 
+    // Updated changeThread with the new AI Profile logic
     const changeThread = async (newThreadId) => {
         setCurrThreadId(newThreadId);
         try {
             const response = await fetch(`http://localhost:8080/api/thread/${newThreadId}`);
             const res = await response.json();
-            setPrevChats(res);
+            
+            // Handle the updated backend object
+            setPrevChats(res.messages || res); 
+            setThreadProfile(res.profile || null); // Save the AI Insights
+            
             setNewChat(false);
             setReply(null);
         } catch(err) {

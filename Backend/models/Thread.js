@@ -10,6 +10,10 @@ const MessageSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    embedding: {
+        type: [Number], // NEW: Stores the 1536-dimensional vector for RAG
+        default: []
+    },
     timestamp: {
         type: Date,
         default: Date.now
@@ -34,7 +38,14 @@ const ThreadSchema = new mongoose.Schema({
     updatedAt: {
         type: Date,
         default: Date.now
-    }
+    },
+    profile: {
+        // NEW: Generalist Enterprise Schema
+        userFacts: [String],
+        preferences: [String],
+        activeContext: String,
+        lastUpdated: Date
+    },
 });
 
 export default mongoose.model("Thread", ThreadSchema);

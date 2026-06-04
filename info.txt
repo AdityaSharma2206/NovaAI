@@ -1,0 +1,6 @@
+multiple chats 
+syntax highlighting for code , copy button
+new chat option
+chat memory for that particular chat.
+
+user preference learning 
