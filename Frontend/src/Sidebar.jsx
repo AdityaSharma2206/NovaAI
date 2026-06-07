@@ -1,26 +1,26 @@
 import "./Sidebar.css";
 import { useContext, useEffect } from "react";
 import { MyContext } from "./MyContext.jsx";
-import {v1 as uuidv1} from "uuid";
+import { v1 as uuidv1 } from "uuid";
+import authFetch from "./utils/authFetch.js";
 
 function Sidebar() {
-    // Only ONE useContext declaration here! We added setThreadProfile to it.
-    const {allThreads, setAllThreads, currThreadId, setNewChat, setPrompt, setReply, setCurrThreadId, setPrevChats, setThreadProfile} = useContext(MyContext);
+    const { allThreads, setAllThreads, currThreadId, setNewChat, setPrompt, setReply, setCurrThreadId, setPrevChats, setThreadProfile, user, handleLogout } = useContext(MyContext);
 
     const getAllThreads = async () => {
         try {
-            const response = await fetch("http://localhost:8080/api/thread");
+            const response = await authFetch("http://localhost:8080/api/thread");
+            if (!response.ok) return;
             const res = await response.json();
-            const filteredData = res.map(thread => ({threadId: thread.threadId, title: thread.title}));
-            setAllThreads(filteredData);
-        } catch(err) {
+            setAllThreads(res.map(thread => ({ threadId: thread.threadId, title: thread.title })));
+        } catch (err) {
             console.log(err);
         }
     };
 
     useEffect(() => {
         getAllThreads();
-    }, [currThreadId])
+    }, [currThreadId]);
 
     const createNewChat = () => {
         setNewChat(true);
@@ -28,40 +28,32 @@ function Sidebar() {
         setReply(null);
         setCurrThreadId(uuidv1());
         setPrevChats([]);
-    }
+    };
 
-    // Updated changeThread with the new AI Profile logic
     const changeThread = async (newThreadId) => {
         setCurrThreadId(newThreadId);
         try {
-            const response = await fetch(`http://localhost:8080/api/thread/${newThreadId}`);
+            const response = await authFetch(`http://localhost:8080/api/thread/${newThreadId}`);
+            if (!response.ok) return;
             const res = await response.json();
-            
-            // Handle the updated backend object
-            setPrevChats(res.messages || res); 
-            setThreadProfile(res.profile || null); // Save the AI Insights
-            
+            setPrevChats(res.messages || res);
+            setThreadProfile(res.profile || null);
             setNewChat(false);
             setReply(null);
-        } catch(err) {
+        } catch (err) {
             console.log(err);
         }
-    }   
+    };
 
     const deleteThread = async (threadId) => {
         try {
-            await fetch(`http://localhost:8080/api/thread/${threadId}`, {method: "DELETE"});
-            
-            // Updated threads re-render
+            await authFetch(`http://localhost:8080/api/thread/${threadId}`, { method: "DELETE" });
             setAllThreads(prev => prev.filter(thread => thread.threadId !== threadId));
-
-            if(threadId === currThreadId) {
-                createNewChat();
-            }
-        } catch(err) {
+            if (threadId === currThreadId) createNewChat();
+        } catch (err) {
             console.log(err);
         }
-    }
+    };
 
     return (
         <section className="sidebar">
@@ -77,7 +69,7 @@ function Sidebar() {
 
             <ul className="history">
                 {allThreads?.map((thread) => (
-                    <li key={thread.threadId} 
+                    <li key={thread.threadId}
                         onClick={() => changeThread(thread.threadId)}
                         className={thread.threadId === currThreadId ? "highlighted" : ""}
                     >
@@ -91,12 +83,18 @@ function Sidebar() {
                     </li>
                 ))}
             </ul>
- 
-            <div className="sign">
-                <p>NovaAI </p>
+
+            <div className="sidebar-footer">
+                <span className="user-email">
+                    <i className="fa-solid fa-circle-user"></i>
+                    {user?.email}
+                </span>
+                <button className="logout-btn" onClick={handleLogout} title="Sign out">
+                    <i className="fa-solid fa-right-from-bracket"></i>
+                </button>
             </div>
         </section>
-    )
+    );
 }
 
 export default Sidebar;

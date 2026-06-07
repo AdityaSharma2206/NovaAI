@@ -26,6 +26,11 @@ const ThreadSchema = new mongoose.Schema({
         required: true,
         unique: true
     },
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true
+    },
     title: {
         type: String,
         default: "New Chat"
@@ -47,5 +52,7 @@ const ThreadSchema = new mongoose.Schema({
         lastUpdated: Date
     },
 });
+
+ThreadSchema.index({ userId: 1, updatedAt: -1 });
 
 export default mongoose.model("Thread", ThreadSchema);

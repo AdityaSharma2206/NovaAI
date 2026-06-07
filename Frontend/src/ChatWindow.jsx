@@ -2,6 +2,7 @@ import "./ChatWindow.css";
 import Chat from "./Chat.jsx";
 import { MyContext } from "./MyContext.jsx";
 import { useContext, useState, useEffect, useRef } from "react";
+import authFetch from "./utils/authFetch.js";
 import { ScaleLoader } from "react-spinners";
 
 function ChatWindow() {
@@ -14,7 +15,7 @@ function ChatWindow() {
 
     const fetchLatestProfile = async () => {
         try {
-            const response = await fetch(`http://localhost:8080/api/thread/${currThreadId}`);
+            const response = await authFetch(`http://localhost:8080/api/thread/${currThreadId}`);
             const res = await response.json();
             if (res.profile) {
                 setThreadProfile(res.profile);
@@ -35,12 +36,11 @@ function ChatWindow() {
 
         const options = {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ message: prompt, threadId: currThreadId })
         };
 
         try {
-            const response = await fetch("http://localhost:8080/api/chat", options);
+            const response = await authFetch("http://localhost:8080/api/chat", options);
             const res = await response.json();
             
             setReply(res.reply);
