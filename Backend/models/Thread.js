@@ -51,6 +51,11 @@ const ThreadSchema = new mongoose.Schema({
         activeContext: String,
         lastUpdated: Date
     },
+    summary: {
+        content: String,
+        builtFromMessageCount: Number, // how many non-system messages were compressed
+        createdAt: Date
+    }
 });
 
 ThreadSchema.index({ userId: 1, updatedAt: -1 });

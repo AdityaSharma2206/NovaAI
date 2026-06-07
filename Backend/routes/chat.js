@@ -5,6 +5,9 @@ import { getOpenAIAPIResponse, getOpenAIJSONResponse, getOpenAIEmbedding, getOpe
 
 const router = express.Router();
 
+const SUMMARY_THRESHOLD = 14; // 1 system + 13 user/assistant messages (~6-7 full exchanges)
+const RECENT_WINDOW = 6;      // mirrors the existing slice(-6) context window
+
 // ==============================
 // Mathematical Cosine Similarity Function
 // ==============================
@@ -60,6 +63,50 @@ const extractProfileData = async (thread) => {
         };
         await thread.save();
         console.log(`[AI Insights] Updated dynamic profile for thread ${thread.threadId}`);
+    }
+};
+
+// ==============================
+// Conversation Summarization
+// ==============================
+const generateSummary = async (thread, summarizableCount) => {
+    const messagesToSummarize = thread.messages.slice(1, 1 + summarizableCount);
+    const conversationText = messagesToSummarize
+        .map(m => `${m.role.toUpperCase()}: ${m.content}`)
+        .join("\n\n");
+
+    const summaryPrompt = [
+        {
+            role: "system",
+            content: "Summarize this conversation history in 3-5 concise sentences. Capture the key facts, questions asked, conclusions reached, and context needed to continue the conversation naturally."
+        },
+        { role: "user", content: conversationText }
+    ];
+
+    const summaryText = await getOpenAIAPIResponse(summaryPrompt);
+
+    const rawChars = messagesToSummarize.reduce((sum, m) => sum + m.content.length, 0);
+    const summaryChars = summaryText.length;
+    const tokensSaved = Math.round((rawChars - summaryChars) / 4);
+    console.log(`[Summary] Thread ${thread.threadId}: ${messagesToSummarize.length} messages (${rawChars} chars) → ${summaryChars} chars (~${tokensSaved} tokens saved/request)`);
+
+    thread.summary = {
+        content: summaryText,
+        builtFromMessageCount: summarizableCount,
+        createdAt: new Date()
+    };
+    await thread.save();
+};
+
+const maybeSummarize = async (thread) => {
+    if (thread.messages.length <= SUMMARY_THRESHOLD) return;
+
+    const summarizableCount = thread.messages.length - 1 - RECENT_WINDOW;
+    const lastSummarizedCount = thread.summary?.builtFromMessageCount || 0;
+    const newSinceLastSummary = summarizableCount - lastSummarizedCount;
+
+    if (!thread.summary || newSinceLastSummary >= 4) {
+        await generateSummary(thread, summarizableCount);
     }
 };
 
@@ -158,9 +205,13 @@ router.post("/chat", async(req, res) => {
             }
         }
 
-        // 4. CONTEXT AWARE MEMORY LAYER (Profile Injection)
+        // 4. CONTEXT AWARE MEMORY LAYER (Summary + Profile Injection)
         let dynamicSystemPrompt = "You are a highly personalized AI assistant.";
-        
+
+        if (thread.summary?.content) {
+            dynamicSystemPrompt += `\n\nSummary of earlier conversation:\n${thread.summary.content}`;
+        }
+
         if (thread.profile && (thread.profile.userFacts?.length || thread.profile.activeContext)) {
             dynamicSystemPrompt += `\n\nTailor your responses using this learned context about the user:\n`;
             if (thread.profile.activeContext) dynamicSystemPrompt += `- Current Focus: ${thread.profile.activeContext}\n`;
@@ -196,6 +247,7 @@ router.post("/chat", async(req, res) => {
                     thread.updatedAt = new Date();
                     await thread.save();
                     extractProfileData(thread).catch(err => console.log("Extraction Error:", err));
+                    maybeSummarize(thread).catch(err => console.log("[Summary] Error:", err));
 
                     // Fire-and-forget analytics write — never blocks or delays the response
                     Analytics.create({
