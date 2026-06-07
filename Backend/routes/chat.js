@@ -1,5 +1,6 @@
 import express from "express";
 import Thread from "../models/Thread.js";
+import Analytics from "../models/Analytics.js";
 import { getOpenAIAPIResponse, getOpenAIJSONResponse, getOpenAIEmbedding, getOpenAIStreamingResponse } from "../utils/openai.js";
 
 const router = express.Router();
@@ -172,6 +173,9 @@ router.post("/chat", async(req, res) => {
 
         // 5. GET AI RESPONSE — via SSE streaming
         const recentMessages = [thread.messages[0], ...thread.messages.slice(-6).map(m => ({ role: m.role, content: m.content }))];
+        const ragUsed = historicalContext !== "";
+        const requestStart = Date.now();
+        let ttftMs = null;
 
         res.setHeader("Content-Type", "text/event-stream");
         res.setHeader("Cache-Control", "no-cache");
@@ -181,15 +185,32 @@ router.post("/chat", async(req, res) => {
         await getOpenAIStreamingResponse(
             recentMessages,
             (token) => {
+                if (ttftMs === null) ttftMs = Date.now() - requestStart;
                 res.write(`data: ${JSON.stringify({ token })}\n\n`);
             },
-            async (fullReply) => {
+            async (fullReply, usage) => {
+                const latencyMs = Date.now() - requestStart;
                 try {
                     const replyEmbedding = await getOpenAIEmbedding(fullReply);
                     thread.messages.push({ role: "assistant", content: fullReply, embedding: replyEmbedding });
                     thread.updatedAt = new Date();
                     await thread.save();
                     extractProfileData(thread).catch(err => console.log("Extraction Error:", err));
+
+                    // Fire-and-forget analytics write — never blocks or delays the response
+                    Analytics.create({
+                        userId:           req.user.userId,
+                        threadId,
+                        promptTokens:     usage?.prompt_tokens     || 0,
+                        completionTokens: usage?.completion_tokens  || 0,
+                        totalTokens:      usage?.total_tokens       || 0,
+                        estimatedCostUsd: ((usage?.prompt_tokens || 0) * 0.00000015) +
+                                          ((usage?.completion_tokens || 0) * 0.0000006),
+                        latencyMs,
+                        ttftMs:           ttftMs || 0,
+                        ragUsed
+                    }).catch(err => console.log("[Analytics] Save error:", err));
+
                     res.write(`data: ${JSON.stringify({ done: true, title: thread.title })}\n\n`);
                 } catch (saveErr) {
                     console.log("Save error after stream:", saveErr);

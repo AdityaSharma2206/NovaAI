@@ -1,0 +1,86 @@
+.analytics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.analytics-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.analytics-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 500;
+}
+
+.analytics-value {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1;
+}
+
+.analytics-value.accent {
+    color: var(--accent-primary);
+}
+
+/* Token progress bars */
+.token-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.token-bar-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    width: 72px;
+    flex-shrink: 0;
+}
+
+.token-bar-track {
+    flex-grow: 1;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.token-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.5s ease;
+}
+
+.prompt-fill {
+    background: var(--accent-primary);
+}
+
+.completion-fill {
+    background: #38bdf8;
+}
+
+.token-bar-value {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    width: 110px;
+    flex-shrink: 0;
+    text-align: right;
+}
+
+/* Reuse navbar-right layout for two icons */
+.navbar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}

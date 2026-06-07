@@ -1,7 +1,8 @@
 import "./ChatWindow.css";
 import Chat from "./Chat.jsx";
+import AnalyticsDrawer from "./AnalyticsDrawer.jsx";
 import { MyContext } from "./MyContext.jsx";
-import { useContext, useState, useEffect, useRef } from "react";
+import { useContext, useState, useRef } from "react";
 import authFetch from "./utils/authFetch.js";
 import { ScaleLoader } from "react-spinners";
 
@@ -9,6 +10,7 @@ function ChatWindow() {
     const { prompt, setPrompt, setStreamingReply, currThreadId, setPrevChats, newChat, setThreadProfile, setNewChat, setAllThreads, threadProfile } = useContext(MyContext);
     const [loading, setLoading] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
+    const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
     
     // NEW: Reference for the auto-expanding textarea
     const textareaRef = useRef(null);
@@ -103,10 +105,17 @@ function ChatWindow() {
         <div className="chatWindow">
             <div className="navbar">
                 <span className="brand">NovaAI <i className="fa-solid fa-chevron-down"></i></span>
-                <div className="userIconDiv" onClick={() => { fetchLatestProfile(); setIsOpen(true); }} title="View AI Memory">
-                    <span className="userIcon"><i className="fa-solid fa-brain"></i></span>
+                <div className="navbar-right">
+                    <div className="userIconDiv" onClick={() => { setIsOpen(false); setIsAnalyticsOpen(true); }} title="View Analytics">
+                        <span className="userIcon"><i className="fa-solid fa-chart-line"></i></span>
+                    </div>
+                    <div className="userIconDiv" onClick={() => { fetchLatestProfile(); setIsAnalyticsOpen(false); setIsOpen(true); }} title="View AI Memory">
+                        <span className="userIcon"><i className="fa-solid fa-brain"></i></span>
+                    </div>
                 </div>
             </div>
+
+            <AnalyticsDrawer isOpen={isAnalyticsOpen} onClose={() => setIsAnalyticsOpen(false)} />
 
             {isOpen && <div className="drawer-overlay" onClick={() => setIsOpen(false)}></div>}
             <div className={`insights-drawer ${isOpen ? 'open' : ''}`}>
