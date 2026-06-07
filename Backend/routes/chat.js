@@ -1,6 +1,6 @@
 import express from "express";
 import Thread from "../models/Thread.js";
-import { getOpenAIAPIResponse, getOpenAIJSONResponse, getOpenAIEmbedding } from "../utils/openai.js";
+import { getOpenAIAPIResponse, getOpenAIJSONResponse, getOpenAIEmbedding, getOpenAIStreamingResponse } from "../utils/openai.js";
 
 const router = express.Router();
 
@@ -170,24 +170,44 @@ router.post("/chat", async(req, res) => {
         // Combine Profile Data + Semantic Vector Data
         thread.messages[0].content = dynamicSystemPrompt + historicalContext;
 
-        // 5. GET AI RESPONSE
+        // 5. GET AI RESPONSE — via SSE streaming
         const recentMessages = [thread.messages[0], ...thread.messages.slice(-6).map(m => ({ role: m.role, content: m.content }))];
-        const assistantReply = await getOpenAIAPIResponse(recentMessages);
 
-        // Generate embedding for AI reply so the user can search for it later
-        const replyEmbedding = await getOpenAIEmbedding(assistantReply);
+        res.setHeader("Content-Type", "text/event-stream");
+        res.setHeader("Cache-Control", "no-cache");
+        res.setHeader("Connection", "keep-alive");
+        res.flushHeaders();
 
-        thread.messages.push({ role: "assistant", content: assistantReply, embedding: replyEmbedding });
-        thread.updatedAt = new Date();
-        await thread.save();
-
-        extractProfileData(thread).catch(err => console.log("Extraction Error:", err));
-
-        res.json({ reply: assistantReply, title: thread.title });
+        await getOpenAIStreamingResponse(
+            recentMessages,
+            (token) => {
+                res.write(`data: ${JSON.stringify({ token })}\n\n`);
+            },
+            async (fullReply) => {
+                try {
+                    const replyEmbedding = await getOpenAIEmbedding(fullReply);
+                    thread.messages.push({ role: "assistant", content: fullReply, embedding: replyEmbedding });
+                    thread.updatedAt = new Date();
+                    await thread.save();
+                    extractProfileData(thread).catch(err => console.log("Extraction Error:", err));
+                    res.write(`data: ${JSON.stringify({ done: true, title: thread.title })}\n\n`);
+                } catch (saveErr) {
+                    console.log("Save error after stream:", saveErr);
+                    res.write(`data: ${JSON.stringify({ error: "Failed to save reply" })}\n\n`);
+                } finally {
+                    res.end();
+                }
+            }
+        );
 
     } catch(err) {
         console.log(err);
-        res.status(500).json({ error: "Something went wrong" });
+        if (!res.headersSent) {
+            res.status(500).json({ error: "Something went wrong" });
+        } else {
+            res.write(`data: ${JSON.stringify({ error: "Something went wrong" })}\n\n`);
+            res.end();
+        }
     }
 });
 

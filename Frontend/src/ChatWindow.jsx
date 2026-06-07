@@ -6,7 +6,7 @@ import authFetch from "./utils/authFetch.js";
 import { ScaleLoader } from "react-spinners";
 
 function ChatWindow() {
-    const { prompt, setPrompt, reply, setReply, currThreadId, setPrevChats, newChat, setThreadProfile, setNewChat, setAllThreads, threadProfile } = useContext(MyContext);
+    const { prompt, setPrompt, setStreamingReply, currThreadId, setPrevChats, newChat, setThreadProfile, setNewChat, setAllThreads, threadProfile } = useContext(MyContext);
     const [loading, setLoading] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     
@@ -29,50 +29,75 @@ function ChatWindow() {
         if (!prompt.trim()) return;
 
         const isFirstMessage = newChat;
-        const fallbackTitle = prompt; 
+        const currentPrompt = prompt;
 
         setLoading(true);
         setNewChat(false);
+        setPrompt("");
+        if (textareaRef.current) {
+            textareaRef.current.style.height = "auto";
+        }
+
+        // Show the user message immediately before any network round-trip
+        setPrevChats(prev => [...prev, { role: "user", content: currentPrompt }]);
 
         const options = {
             method: "POST",
-            body: JSON.stringify({ message: prompt, threadId: currThreadId })
+            body: JSON.stringify({ message: currentPrompt, threadId: currThreadId })
         };
 
         try {
             const response = await authFetch("http://localhost:8080/api/chat", options);
-            const res = await response.json();
-            
-            setReply(res.reply);
-            setTimeout(() => {
-                fetchLatestProfile();
-            }, 3000);
+            setLoading(false);
 
-            if (isFirstMessage) {
-                setAllThreads(prevThreads => [
-                    { threadId: currThreadId, title: res.title || fallbackTitle },
-                    ...prevThreads
-                ]);
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+            let assembled = "";
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n");
+                buffer = lines.pop();
+
+                for (const line of lines) {
+                    if (!line.startsWith("data: ")) continue;
+                    const payload = line.slice(6).trim();
+                    if (!payload) continue;
+
+                    try {
+                        const parsed = JSON.parse(payload);
+
+                        if (parsed.token !== undefined) {
+                            assembled += parsed.token;
+                            setStreamingReply(assembled);
+                        } else if (parsed.done) {
+                            // Stream complete: commit the full reply and clear the live bubble
+                            setPrevChats(prev => [...prev, { role: "assistant", content: assembled }]);
+                            setStreamingReply("");
+                            setTimeout(() => fetchLatestProfile(), 3000);
+                            if (isFirstMessage) {
+                                setAllThreads(prev => [
+                                    { threadId: currThreadId, title: parsed.title || currentPrompt },
+                                    ...prev
+                                ]);
+                            }
+                        } else if (parsed.error) {
+                            console.log("Stream error from server:", parsed.error);
+                            setStreamingReply("");
+                        }
+                    } catch { /* malformed SSE line, skip */ }
+                }
             }
         } catch(err) {
             console.log(err);
+            setStreamingReply("");
         }
         setLoading(false);
-    }
-
-    useEffect(() => {
-        if(prompt && reply) {
-            setPrevChats(prevChats => (
-                [...prevChats, { role: "user", content: prompt },{ role: "assistant", content: reply }]
-            ));
-        }
-        setPrompt("");
-        
-        // NEW: Reset textarea height back to default after message sends
-        if (textareaRef.current) {
-            textareaRef.current.style.height = 'auto';
-        }
-    }, [reply]);
+    };
 
     return (
         <div className="chatWindow">
