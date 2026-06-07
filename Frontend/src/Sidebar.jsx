@@ -1,11 +1,12 @@
 import "./Sidebar.css";
-import { useContext, useEffect } from "react";
+import { useContext, useEffect, useState } from "react";
 import { MyContext } from "./MyContext.jsx";
 import { v1 as uuidv1 } from "uuid";
 import authFetch from "./utils/authFetch.js";
 
 function Sidebar() {
     const { allThreads, setAllThreads, currThreadId, setNewChat, setPrompt, setStreamingReply, setCurrThreadId, setPrevChats, setThreadProfile, user, handleLogout } = useContext(MyContext);
+    const [pendingDelete, setPendingDelete] = useState(null);
 
     const getAllThreads = async () => {
         try {
@@ -23,6 +24,7 @@ function Sidebar() {
     }, [currThreadId]);
 
     const createNewChat = () => {
+        setPendingDelete(null);
         setNewChat(true);
         setPrompt("");
         setStreamingReply("");
@@ -32,6 +34,7 @@ function Sidebar() {
     };
 
     const changeThread = async (newThreadId) => {
+        setPendingDelete(null);
         setCurrThreadId(newThreadId);
         setStreamingReply("");
         try {
@@ -69,20 +72,32 @@ function Sidebar() {
             </div>
 
             <ul className="history">
-                {allThreads?.map((thread) => (
-                    <li key={thread.threadId}
-                        onClick={() => changeThread(thread.threadId)}
-                        className={thread.threadId === currThreadId ? "highlighted" : ""}
-                    >
-                        <span className="thread-title">{thread.title}</span>
-                        <i className="fa-solid fa-trash"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                deleteThread(thread.threadId);
-                            }}
-                        ></i>
-                    </li>
-                ))}
+                {allThreads?.map((thread) => {
+                    const isPending = pendingDelete === thread.threadId;
+                    return (
+                        <li key={thread.threadId}
+                            onClick={() => changeThread(thread.threadId)}
+                            className={`${thread.threadId === currThreadId ? "highlighted" : ""} ${isPending ? "delete-pending" : ""}`}
+                        >
+                            <span className="thread-title">{thread.title}</span>
+                            <div className="delete-zone">
+                                {isPending && <span className="delete-confirm-label">Delete?</span>}
+                                <i className="fa-solid fa-trash"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (isPending) {
+                                            deleteThread(thread.threadId);
+                                            setPendingDelete(null);
+                                        } else {
+                                            setPendingDelete(thread.threadId);
+                                            setTimeout(() => setPendingDelete(p => p === thread.threadId ? null : p), 3000);
+                                        }
+                                    }}
+                                ></i>
+                            </div>
+                        </li>
+                    );
+                })}
             </ul>
 
             <div className="sidebar-footer">

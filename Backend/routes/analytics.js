@@ -42,6 +42,9 @@ router.get("/analytics", async (req, res) => {
             avgTtftMs:              Math.round(stats.avgTtftMs    || 0),
             ragUsageRate:           stats.totalMessages > 0
                 ? parseFloat((stats.ragUsedCount / stats.totalMessages).toFixed(2))
+                : 0,
+            avgCostPerMessage:      stats.totalMessages > 0
+                ? parseFloat(((stats.estimatedTotalCostUsd || 0) / stats.totalMessages).toFixed(6))
                 : 0
         });
     } catch (err) {

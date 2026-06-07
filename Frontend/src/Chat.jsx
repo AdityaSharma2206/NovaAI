@@ -5,8 +5,15 @@ import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import "highlight.js/styles/github-dark.css";
 
+const SUGGESTIONS = [
+    "What are you working on right now?",
+    "Help me plan my week",
+    "Explain something complex, simply",
+    "What should I focus on today?",
+];
+
 function Chat() {
-    const { newChat, prevChats, streamingReply } = useContext(MyContext);
+    const { newChat, prevChats, streamingReply, setPrompt } = useContext(MyContext);
     const chatEndRef = useRef(null);
 
     const copyToClipboard = async (text) => {
@@ -25,8 +32,15 @@ function Chat() {
         <div className="chats-container">
             {newChat && !streamingReply && (
                 <div className="empty-state">
-                    <img src="src/assets/blacklogo.png" alt="SigmaGPT Logo" className="empty-logo" />
+                    <img src="src/assets/blacklogo.png" alt="NovaAI Logo" className="empty-logo" />
                     <h1>How can I help you today?</h1>
+                    <div className="suggestion-chips">
+                        {SUGGESTIONS.map((s, i) => (
+                            <button key={i} className="suggestion-chip" onClick={() => setPrompt(s)}>
+                                {s}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             )}
 
@@ -72,6 +86,7 @@ function Chat() {
                                 <ReactMarkdown rehypePlugins={[rehypeHighlight]}>
                                     {streamingReply}
                                 </ReactMarkdown>
+                                <span className="typing-cursor" />
                             </div>
                         </div>
                     </div>

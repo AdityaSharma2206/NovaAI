@@ -2,6 +2,17 @@ import "./PersonalInsightsDrawer.css";
 import { useState, useEffect } from "react";
 import authFetch from "./utils/authFetch.js";
 
+const timeAgo = (date) => {
+    if (!date) return null;
+    const seconds = Math.round((Date.now() - new Date(date)) / 1000);
+    if (seconds < 60)  return "just now";
+    const minutes = Math.round(seconds / 60);
+    if (minutes < 60)  return `${minutes}m ago`;
+    const hours = Math.round(minutes / 60);
+    if (hours < 24)    return `${hours}h ago`;
+    return `${Math.round(hours / 24)}d ago`;
+};
+
 const TYPE_META = {
     interest:   { icon: "fa-star",                 label: "New interest",   className: "type-interest" },
     goal:       { icon: "fa-bullseye",             label: "New goal",       className: "type-goal" },
@@ -77,7 +88,12 @@ function PersonalInsightsDrawer({ isOpen, onClose }) {
 
                     {!loading && hasAnyData && (
                         <>
-                            <p className="insight-sub">Your personal profile, built across all conversations.</p>
+                            <p className="insight-sub">
+                                Your personal profile, built across all conversations.
+                                {memory.lastUpdated && (
+                                    <span style={{ opacity: 0.6 }}> · Updated {timeAgo(memory.lastUpdated)}</span>
+                                )}
+                            </p>
 
                             {memory.profileSummary && (
                                 <div className="insight-section">

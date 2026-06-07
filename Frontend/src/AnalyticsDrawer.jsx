@@ -15,10 +15,11 @@ function AnalyticsDrawer({ isOpen, onClose }) {
             .catch(err => { console.log(err); setLoading(false); });
     }, [isOpen]);
 
-    const fmt    = (n) => (n ?? 0).toLocaleString();
-    const fmtMs  = (n) => n ? `${n.toLocaleString()} ms` : "—";
-    const fmtCost = (n) => `$${(n ?? 0).toFixed(4)}`;
-    const fmtPct  = (n) => `${((n ?? 0) * 100).toFixed(0)}%`;
+    const fmt         = (n) => (n ?? 0).toLocaleString();
+    const fmtMs       = (n) => n ? `${n.toLocaleString()} ms` : "—";
+    const fmtCost     = (n) => `$${(n ?? 0).toFixed(4)}`;
+    const fmtPct      = (n) => `${((n ?? 0) * 100).toFixed(0)}%`;
+    const fmtCostPer  = (n) => n ? `$${n.toFixed(4)}/msg` : null;
 
     const total       = metrics?.totalTokens || 0;
     const promptPct   = total > 0 ? Math.round((metrics.totalPromptTokens / total) * 100) : 0;
@@ -67,6 +68,9 @@ function AnalyticsDrawer({ isOpen, onClose }) {
                                 <div className="analytics-card">
                                     <span className="analytics-label">Est. Cost</span>
                                     <span className="analytics-value accent">{fmtCost(metrics.estimatedTotalCostUsd)}</span>
+                                    {fmtCostPer(metrics.avgCostPerMessage) && (
+                                        <span className="analytics-sub">{fmtCostPer(metrics.avgCostPerMessage)}</span>
+                                    )}
                                 </div>
                                 <div className="analytics-card">
                                     <span className="analytics-label">Avg Latency</span>
@@ -99,8 +103,11 @@ function AnalyticsDrawer({ isOpen, onClose }) {
                             <div className="insight-section">
                                 <h5><i className="fa-solid fa-database"></i> RAG Activity</h5>
                                 <div className="context-card">
-                                    Semantic search contributed context in{" "}
-                                    <strong>{fmtPct(metrics.ragUsageRate)}</strong> of messages
+                                    {metrics.ragUsageRate >= 0.3 ? (
+                                        <>Past conversations are <strong>actively improving your answers</strong> — semantic context retrieved in <strong>{fmtPct(metrics.ragUsageRate)}</strong> of messages.</>
+                                    ) : (
+                                        <>Semantic search contributed context in <strong>{fmtPct(metrics.ragUsageRate)}</strong> of messages — more conversations will improve retrieval accuracy.</>
+                                    )}
                                 </div>
                             </div>
                         </>

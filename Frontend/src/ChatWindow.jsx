@@ -108,14 +108,17 @@ function ChatWindow() {
             <div className="navbar">
                 <span className="brand">NovaAI <i className="fa-solid fa-chevron-down"></i></span>
                 <div className="navbar-right">
-                    <div className="userIconDiv" onClick={() => { setIsOpen(false); setIsProfileOpen(false); setIsAnalyticsOpen(true); }} title="View Analytics">
+                    <div className="userIconDiv" onClick={() => { setIsOpen(false); setIsProfileOpen(false); setIsAnalyticsOpen(true); }}>
                         <span className="userIcon"><i className="fa-solid fa-chart-line"></i></span>
+                        <span className="nav-tool-label">Analytics</span>
                     </div>
-                    <div className="userIconDiv" onClick={() => { setIsAnalyticsOpen(false); setIsProfileOpen(false); fetchLatestProfile(); setIsOpen(true); }} title="View AI Memory">
+                    <div className="userIconDiv" onClick={() => { setIsAnalyticsOpen(false); setIsProfileOpen(false); fetchLatestProfile(); setIsOpen(true); }}>
                         <span className="userIcon"><i className="fa-solid fa-brain"></i></span>
+                        <span className="nav-tool-label">Memory</span>
                     </div>
-                    <div className="userIconDiv" onClick={() => { setIsOpen(false); setIsAnalyticsOpen(false); setIsProfileOpen(true); }} title="View Personal Profile">
+                    <div className="userIconDiv" onClick={() => { setIsOpen(false); setIsAnalyticsOpen(false); setIsProfileOpen(true); }}>
                         <span className="userIcon"><i className="fa-solid fa-user-astronaut"></i></span>
+                        <span className="nav-tool-label">Profile</span>
                     </div>
                 </div>
             </div>

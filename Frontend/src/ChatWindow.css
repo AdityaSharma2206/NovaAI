@@ -38,6 +38,18 @@
 
 .userIconDiv {
     cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+}
+
+.nav-tool-label {
+    font-size: 0.58rem;
+    color: var(--text-secondary);
+    letter-spacing: 0.03em;
+    user-select: none;
+    line-height: 1;
 }
 
 .userIcon {
