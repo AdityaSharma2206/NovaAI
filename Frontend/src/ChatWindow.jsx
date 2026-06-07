@@ -1,6 +1,7 @@
 import "./ChatWindow.css";
 import Chat from "./Chat.jsx";
 import AnalyticsDrawer from "./AnalyticsDrawer.jsx";
+import PersonalInsightsDrawer from "./PersonalInsightsDrawer.jsx";
 import { MyContext } from "./MyContext.jsx";
 import { useContext, useState, useRef } from "react";
 import authFetch from "./utils/authFetch.js";
@@ -11,6 +12,7 @@ function ChatWindow() {
     const [loading, setLoading] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
     const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
+    const [isProfileOpen, setIsProfileOpen] = useState(false);
     
     // NEW: Reference for the auto-expanding textarea
     const textareaRef = useRef(null);
@@ -106,16 +108,20 @@ function ChatWindow() {
             <div className="navbar">
                 <span className="brand">NovaAI <i className="fa-solid fa-chevron-down"></i></span>
                 <div className="navbar-right">
-                    <div className="userIconDiv" onClick={() => { setIsOpen(false); setIsAnalyticsOpen(true); }} title="View Analytics">
+                    <div className="userIconDiv" onClick={() => { setIsOpen(false); setIsProfileOpen(false); setIsAnalyticsOpen(true); }} title="View Analytics">
                         <span className="userIcon"><i className="fa-solid fa-chart-line"></i></span>
                     </div>
-                    <div className="userIconDiv" onClick={() => { fetchLatestProfile(); setIsAnalyticsOpen(false); setIsOpen(true); }} title="View AI Memory">
+                    <div className="userIconDiv" onClick={() => { setIsAnalyticsOpen(false); setIsProfileOpen(false); fetchLatestProfile(); setIsOpen(true); }} title="View AI Memory">
                         <span className="userIcon"><i className="fa-solid fa-brain"></i></span>
+                    </div>
+                    <div className="userIconDiv" onClick={() => { setIsOpen(false); setIsAnalyticsOpen(false); setIsProfileOpen(true); }} title="View Personal Profile">
+                        <span className="userIcon"><i className="fa-solid fa-user-astronaut"></i></span>
                     </div>
                 </div>
             </div>
 
             <AnalyticsDrawer isOpen={isAnalyticsOpen} onClose={() => setIsAnalyticsOpen(false)} />
+            <PersonalInsightsDrawer isOpen={isProfileOpen} onClose={() => setIsProfileOpen(false)} />
 
             {isOpen && <div className="drawer-overlay" onClick={() => setIsOpen(false)}></div>}
             <div className={`insights-drawer ${isOpen ? 'open' : ''}`}>

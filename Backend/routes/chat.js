@@ -1,12 +1,15 @@
 import express from "express";
 import Thread from "../models/Thread.js";
 import Analytics from "../models/Analytics.js";
+import UserMemory from "../models/UserMemory.js";
 import { getOpenAIAPIResponse, getOpenAIJSONResponse, getOpenAIEmbedding, getOpenAIStreamingResponse } from "../utils/openai.js";
 
 const router = express.Router();
 
 const SUMMARY_THRESHOLD = 14; // 1 system + 13 user/assistant messages (~6-7 full exchanges)
 const RECENT_WINDOW = 6;      // mirrors the existing slice(-6) context window
+
+const PREDEFINED_TOPICS = ["Travel", "Fitness", "Relationships", "Finance", "Career", "Education", "Entertainment", "Technology"];
 
 // ==============================
 // Mathematical Cosine Similarity Function
@@ -110,6 +113,104 @@ const maybeSummarize = async (thread) => {
     }
 };
 
+// ==============================
+// Long-Term Memory Extractor (Cross-Conversation, Per-User)
+// ==============================
+const generateProfileSummary = (memory) => {
+    const parts = [];
+    if (memory.interests?.length)          parts.push(`Interested in ${memory.interests.slice(0, 3).join(", ")}.`);
+    if (memory.goals?.length)              parts.push(`Working toward: ${memory.goals.slice(0, 2).join(" and ")}.`);
+    if (memory.ongoingProjects?.length)    parts.push(`Currently working on ${memory.ongoingProjects[0]}.`);
+    if (memory.longTermObjectives?.length) parts.push(`Long-term: ${memory.longTermObjectives[0]}.`);
+    return parts.length ? parts.join(" ") : null;
+};
+
+const extractUserMemory = async (thread, userId) => {
+    const chatHistory = thread.messages.slice(-6).map(m => `${m.role}: ${m.content}`).join("\n");
+
+    const prompt = [
+        {
+            role: "system",
+            content: `You are a long-term user profiling agent. Extract personal information from this conversation into this exact JSON format. Use empty arrays if nothing is found. Do not invent information.
+{
+  "interests": [],
+  "goals": [],
+  "lifeEvents": [],
+  "ongoingProjects": [],
+  "preferences": [],
+  "discussedTopics": [],
+  "challenges": [],
+  "longTermObjectives": []
+}
+For "discussedTopics", only return values from this exact list: ${PREDEFINED_TOPICS.join(", ")}. Leave it empty if none of these topics were clearly discussed.`
+        },
+        { role: "user", content: chatHistory }
+    ];
+
+    const extracted = await getOpenAIJSONResponse(prompt);
+    if (!extracted) return;
+
+    const mergeArrays = (existing, incoming) => {
+        if (!incoming?.length) return existing || [];
+        return [...new Set([...(existing || []), ...incoming])];
+    };
+
+    let memory = await UserMemory.findOne({ userId });
+    if (!memory) memory = new UserMemory({ userId });
+
+    // Track new items before merging so we can build highlights
+    const newHighlights = [];
+    const trackNew = (type, existing, incoming) => {
+        if (!incoming?.length) return;
+        incoming.forEach(item => {
+            if (!(existing || []).includes(item)) {
+                newHighlights.push({ type, content: item, createdAt: new Date() });
+            }
+        });
+    };
+
+    trackNew("interest",   memory.interests,          extracted.interests);
+    trackNew("goal",       memory.goals,              extracted.goals);
+    trackNew("project",    memory.ongoingProjects,    extracted.ongoingProjects);
+    trackNew("challenge",  memory.challenges,         extracted.challenges);
+    trackNew("preference", memory.preferences,        extracted.preferences);
+    trackNew("objective",  memory.longTermObjectives, extracted.longTermObjectives);
+
+    memory.interests          = mergeArrays(memory.interests,          extracted.interests);
+    memory.goals              = mergeArrays(memory.goals,              extracted.goals);
+    memory.lifeEvents         = mergeArrays(memory.lifeEvents,         extracted.lifeEvents);
+    memory.ongoingProjects    = mergeArrays(memory.ongoingProjects,    extracted.ongoingProjects);
+    memory.preferences        = mergeArrays(memory.preferences,        extracted.preferences);
+    memory.challenges         = mergeArrays(memory.challenges,         extracted.challenges);
+    memory.longTermObjectives = mergeArrays(memory.longTermObjectives, extracted.longTermObjectives);
+
+    // Increment topic frequency counts
+    if (extracted.discussedTopics?.length) {
+        const now = new Date();
+        extracted.discussedTopics.forEach(topic => {
+            const entry = memory.topicFrequency.find(t => t.topic === topic);
+            if (entry) {
+                entry.count += 1;
+                entry.lastDiscussed = now;
+            } else {
+                memory.topicFrequency.push({ topic, count: 1, lastDiscussed: now });
+            }
+        });
+    }
+
+    if (newHighlights.length) {
+        memory.memoryHighlights.push(...newHighlights);
+        if (memory.memoryHighlights.length > 20) {
+            memory.memoryHighlights = memory.memoryHighlights.slice(-20);
+        }
+    }
+
+    memory.profileSummary = generateProfileSummary(memory);
+    memory.lastUpdated = new Date();
+    await memory.save();
+    console.log(`[UserMemory] Updated long-term profile for user ${userId}`);
+};
+
 router.get("/thread", async(req, res) => {
     try {
         const threads = await Thread.find({ userId: req.user.userId }).sort({ updatedAt: -1 });
@@ -179,6 +280,9 @@ router.post("/chat", async(req, res) => {
             thread.messages.push({ role: "user", content: message, embedding: messageEmbedding });
         }
 
+        // Fetch long-term user memory for personalised system prompt context
+        const userMemory = await UserMemory.findOne({ userId: req.user.userId });
+
         // 3. SEMANTIC VECTOR SEARCH (Lightweight RAG)
         let historicalContext = "";
         if (thread.messages.length > 3) {
@@ -205,13 +309,25 @@ router.post("/chat", async(req, res) => {
             }
         }
 
-        // 4. CONTEXT AWARE MEMORY LAYER (Summary + Profile Injection)
+        // 4. CONTEXT AWARE MEMORY LAYER (Long-Term + Summary + Thread Profile)
         let dynamicSystemPrompt = "You are a highly personalized AI assistant.";
 
+        // Layer 1: Cross-conversation long-term profile (broadest context)
+        if (userMemory && (userMemory.interests?.length || userMemory.goals?.length || userMemory.ongoingProjects?.length)) {
+            dynamicSystemPrompt += `\n\nLong-term profile of this user:\n`;
+            if (userMemory.profileSummary) dynamicSystemPrompt += `${userMemory.profileSummary}\n`;
+            if (userMemory.interests?.length) dynamicSystemPrompt += `- Interests: ${userMemory.interests.slice(0, 5).join(", ")}\n`;
+            if (userMemory.goals?.length) dynamicSystemPrompt += `- Goals: ${userMemory.goals.slice(0, 3).join(", ")}\n`;
+            if (userMemory.ongoingProjects?.length) dynamicSystemPrompt += `- Active projects: ${userMemory.ongoingProjects.slice(0, 3).join(", ")}\n`;
+            if (userMemory.challenges?.length) dynamicSystemPrompt += `- Recurring challenges: ${userMemory.challenges.slice(0, 3).join(", ")}\n`;
+        }
+
+        // Layer 2: Conversation summary (this thread's compressed history)
         if (thread.summary?.content) {
             dynamicSystemPrompt += `\n\nSummary of earlier conversation:\n${thread.summary.content}`;
         }
 
+        // Layer 3: Thread-level profile (this conversation's extracted context)
         if (thread.profile && (thread.profile.userFacts?.length || thread.profile.activeContext)) {
             dynamicSystemPrompt += `\n\nTailor your responses using this learned context about the user:\n`;
             if (thread.profile.activeContext) dynamicSystemPrompt += `- Current Focus: ${thread.profile.activeContext}\n`;
@@ -250,6 +366,7 @@ router.post("/chat", async(req, res) => {
                     // so running them in parallel causes a Mongoose ParallelSaveError.
                     extractProfileData(thread)
                         .then(() => maybeSummarize(thread))
+                        .then(() => extractUserMemory(thread, req.user.userId))
                         .catch(err => console.log("Background task error:", err));
 
                     // Fire-and-forget analytics write — never blocks or delays the response
