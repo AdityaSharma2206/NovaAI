@@ -27,6 +27,4 @@ const UserMemorySchema = new mongoose.Schema({
     lastUpdated:        Date
 });
 
-UserMemorySchema.index({ userId: 1 });
-
 export default mongoose.model("UserMemory", UserMemorySchema);

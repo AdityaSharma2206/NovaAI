@@ -5,7 +5,7 @@ import { v1 as uuidv1 } from "uuid";
 import authFetch from "./utils/authFetch.js";
 
 function Sidebar() {
-    const { allThreads, setAllThreads, currThreadId, setNewChat, setPrompt, setReply, setCurrThreadId, setPrevChats, setThreadProfile, user, handleLogout } = useContext(MyContext);
+    const { allThreads, setAllThreads, currThreadId, setNewChat, setPrompt, setStreamingReply, setCurrThreadId, setPrevChats, setThreadProfile, user, handleLogout } = useContext(MyContext);
 
     const getAllThreads = async () => {
         try {
@@ -25,13 +25,15 @@ function Sidebar() {
     const createNewChat = () => {
         setNewChat(true);
         setPrompt("");
-        setReply(null);
+        setStreamingReply("");
         setCurrThreadId(uuidv1());
         setPrevChats([]);
+        setThreadProfile(null);
     };
 
     const changeThread = async (newThreadId) => {
         setCurrThreadId(newThreadId);
+        setStreamingReply("");
         try {
             const response = await authFetch(`http://localhost:8080/api/thread/${newThreadId}`);
             if (!response.ok) return;
@@ -39,7 +41,6 @@ function Sidebar() {
             setPrevChats(res.messages || res);
             setThreadProfile(res.profile || null);
             setNewChat(false);
-            setReply(null);
         } catch (err) {
             console.log(err);
         }
