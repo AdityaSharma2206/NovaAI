@@ -246,8 +246,11 @@ router.post("/chat", async(req, res) => {
                     thread.messages.push({ role: "assistant", content: fullReply, embedding: replyEmbedding });
                     thread.updatedAt = new Date();
                     await thread.save();
-                    extractProfileData(thread).catch(err => console.log("Extraction Error:", err));
-                    maybeSummarize(thread).catch(err => console.log("[Summary] Error:", err));
+                    // Chained sequentially — both mutate and save the same thread document,
+                    // so running them in parallel causes a Mongoose ParallelSaveError.
+                    extractProfileData(thread)
+                        .then(() => maybeSummarize(thread))
+                        .catch(err => console.log("Background task error:", err));
 
                     // Fire-and-forget analytics write — never blocks or delays the response
                     Analytics.create({
