@@ -4,6 +4,7 @@ import cors from "cors";
 import mongoose from "mongoose";
 import chatRoutes from "./routes/chat.js";
 import authRoutes from "./routes/auth.js";
+import analyticsRoutes from "./routes/analytics.js";
 import verifyToken from "./middleware/auth.js";
 
 const app = express();
@@ -17,6 +18,7 @@ app.use("/api/auth", authRoutes);
 
 // Protected: all /api/* routes require a valid JWT
 app.use("/api", verifyToken, chatRoutes);
+app.use("/api", verifyToken, analyticsRoutes);
 
 app.listen(PORT, () => {
     console.log(`server running on ${PORT}`);

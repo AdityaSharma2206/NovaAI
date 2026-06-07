@@ -82,7 +82,8 @@ const getOpenAIStreamingResponse = async (messages, onChunk, onDone) => {
         body: JSON.stringify({
             model: process.env.OPENAI_MODEL || "gpt-4o-mini",
             messages,
-            stream: true
+            stream: true,
+            stream_options: { include_usage: true }  // asks OpenAI to send real token counts
         })
     };
     try {
@@ -91,6 +92,7 @@ const getOpenAIStreamingResponse = async (messages, onChunk, onDone) => {
         const decoder = new TextDecoder();
         let buffer = "";
         let assembled = "";
+        let usage = null; // populated by the extra usage chunk OpenAI sends before [DONE]
 
         while (true) {
             const { done, value } = await reader.read();
@@ -104,11 +106,13 @@ const getOpenAIStreamingResponse = async (messages, onChunk, onDone) => {
                 if (!line.startsWith("data: ")) continue;
                 const payload = line.slice(6).trim();
                 if (payload === "[DONE]") {
-                    onDone(assembled);
+                    onDone(assembled, usage);
                     return;
                 }
                 try {
                     const parsed = JSON.parse(payload);
+                    // Capture the usage chunk (choices is empty, usage is populated)
+                    if (parsed.usage) usage = parsed.usage;
                     const token = parsed.choices[0]?.delta?.content || "";
                     if (token) {
                         assembled += token;
@@ -117,10 +121,10 @@ const getOpenAIStreamingResponse = async (messages, onChunk, onDone) => {
                 } catch { /* malformed chunk, skip */ }
             }
         }
-        onDone(assembled);
+        onDone(assembled, usage);
     } catch (err) {
         console.log("OPENAI STREAMING ERROR:", err.message);
-        onDone("");
+        onDone("", null);
     }
 };
 
