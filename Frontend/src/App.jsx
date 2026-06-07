@@ -36,7 +36,7 @@ function App() {
     const [showRegister, setShowRegister] = useState(false);
 
     const [prompt, setPrompt] = useState("");
-    const [reply, setReply] = useState(null);
+    const [streamingReply, setStreamingReply] = useState("");
     const [currThreadId, setCurrThreadId] = useState(uuidv1());
     const [prevChats, setPrevChats] = useState([]);
     const [newChat, setNewChat] = useState(true);
@@ -47,7 +47,7 @@ function App() {
         localStorage.removeItem("token");
         setUser(null);
         setPrompt("");
-        setReply(null);
+        setStreamingReply("");
         setCurrThreadId(uuidv1());
         setPrevChats([]);
         setAllThreads([]);
@@ -66,7 +66,7 @@ function App() {
 
     const providerValues = {
         prompt, setPrompt,
-        reply, setReply,
+        streamingReply, setStreamingReply,
         currThreadId, setCurrThreadId,
         newChat, setNewChat,
         prevChats, setPrevChats,

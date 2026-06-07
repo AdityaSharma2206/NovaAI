@@ -72,4 +72,56 @@ const getOpenAIEmbedding = async (text) => {
     }
 }
 
-export { getOpenAIAPIResponse, getOpenAIJSONResponse, getOpenAIEmbedding };
+const getOpenAIStreamingResponse = async (messages, onChunk, onDone) => {
+    const options = {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
+        },
+        body: JSON.stringify({
+            model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+            messages,
+            stream: true
+        })
+    };
+    try {
+        const response = await fetch("https://api.openai.com/v1/chat/completions", options);
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let assembled = "";
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop(); // keep any partial line for the next iteration
+
+            for (const line of lines) {
+                if (!line.startsWith("data: ")) continue;
+                const payload = line.slice(6).trim();
+                if (payload === "[DONE]") {
+                    onDone(assembled);
+                    return;
+                }
+                try {
+                    const parsed = JSON.parse(payload);
+                    const token = parsed.choices[0]?.delta?.content || "";
+                    if (token) {
+                        assembled += token;
+                        onChunk(token);
+                    }
+                } catch { /* malformed chunk, skip */ }
+            }
+        }
+        onDone(assembled);
+    } catch (err) {
+        console.log("OPENAI STREAMING ERROR:", err.message);
+        onDone("");
+    }
+};
+
+export { getOpenAIAPIResponse, getOpenAIJSONResponse, getOpenAIEmbedding, getOpenAIStreamingResponse };
