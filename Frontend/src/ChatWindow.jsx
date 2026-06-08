@@ -45,6 +45,11 @@ function ChatWindow() {
         // Show the user message immediately before any network round-trip
         setPrevChats(prev => [...prev, { role: "user", content: currentPrompt }]);
 
+        // Optimistically add thread to sidebar — fake "New Chat" entry swaps to real in same render
+        if (isFirstMessage) {
+            setAllThreads(prev => [{ threadId: currThreadId, title: "New Chat" }, ...prev]);
+        }
+
         const options = {
             method: "POST",
             body: JSON.stringify({ message: currentPrompt, threadId: currThreadId })
@@ -84,10 +89,11 @@ function ChatWindow() {
                             setStreamingReply("");
                             setTimeout(() => fetchLatestProfile(), 3000);
                             if (isFirstMessage) {
-                                setAllThreads(prev => [
-                                    { threadId: currThreadId, title: parsed.title || currentPrompt },
-                                    ...prev
-                                ]);
+                                setAllThreads(prev => prev.map(t =>
+                                    t.threadId === currThreadId
+                                        ? { ...t, title: parsed.title || currentPrompt }
+                                        : t
+                                ));
                             }
                         } else if (parsed.error) {
                             console.log("Stream error from server:", parsed.error);
