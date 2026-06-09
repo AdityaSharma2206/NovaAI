@@ -39,17 +39,24 @@ const generateTitle = async(message) => {
 // Background Knowledge Extractor (Generalist Schema)
 // ==============================
 const extractProfileData = async (thread) => {
-    // Commented out so it extracts immediately for your testing purposes!
-    // if (thread.messages.length % 4 !== 0) return; 
+    const userMsgCount = thread.messages.filter(m => m.role === 'user').length;
+    if (userMsgCount % 4 !== 0) return;
 
     const chatHistory = thread.messages.slice(-6).map(m => `${m.role}: ${m.content}`).join("\n");
 
     const extractionPrompt = [
-        { 
-            role: "system", 
-            content: `You are a background AI profiling agent. Extract data from the conversation into this exact JSON format:
-            { "userFacts": ["fact 1"], "preferences": ["preference 1"], "activeContext": "A brief 1-sentence summary of what the user is currently trying to achieve" }.
-            If you don't find anything for a category, leave the array empty. Do not invent information.`
+        {
+            role: "system",
+            content: `You are a session context tracker. Extract only what is relevant to THIS specific conversation — not long-term personal traits.
+
+Respond in this exact JSON format:
+{ "userFacts": [], "preferences": [], "activeContext": "" }
+
+- "userFacts": Concrete things the user is working on or needs help with RIGHT NOW in this session (max 4 items, e.g. "debugging a React hook", "writing a cover letter").
+- "preferences": Format or communication preferences expressed in THIS conversation only (e.g. "wants short answers", "prefers code examples"). Leave empty if none stated.
+- "activeContext": One sentence: what is the user currently trying to achieve in this conversation?
+
+Do NOT extract career goals, general interests, life events, or long-term identity facts.`
         },
         { role: "user", content: chatHistory }
     ];
@@ -57,10 +64,13 @@ const extractProfileData = async (thread) => {
     const extractedData = await getOpenAIJSONResponse(extractionPrompt);
 
     if (extractedData) {
-        const mergeArrays = (oldArr, newArr) => [...new Set([...(oldArr || []), ...(newArr || [])])];
+        // Newest facts first so the most recent session context stays at the front.
+        // Cap at 6 so thread-level facts don't grow across a long conversation.
+        const mergeFresh = (recent, old, limit) =>
+            [...new Set([...(recent || []), ...(old || [])])].slice(0, limit);
         thread.profile = {
-            userFacts: mergeArrays(thread.profile?.userFacts, extractedData.userFacts),
-            preferences: mergeArrays(thread.profile?.preferences, extractedData.preferences),
+            userFacts:    mergeFresh(extractedData.userFacts,    thread.profile?.userFacts,    6),
+            preferences:  mergeFresh(extractedData.preferences,  thread.profile?.preferences,  4),
             activeContext: extractedData.activeContext || thread.profile?.activeContext,
             lastUpdated: new Date()
         };
@@ -117,21 +127,61 @@ const maybeSummarize = async (thread) => {
 // Long-Term Memory Extractor (Cross-Conversation, Per-User)
 // ==============================
 const generateProfileSummary = (memory) => {
-    const parts = [];
-    if (memory.interests?.length)          parts.push(`Interested in ${memory.interests.slice(0, 3).join(", ")}.`);
-    if (memory.goals?.length)              parts.push(`Working toward: ${memory.goals.slice(0, 2).join(" and ")}.`);
-    if (memory.ongoingProjects?.length)    parts.push(`Currently working on ${memory.ongoingProjects[0]}.`);
-    if (memory.longTermObjectives?.length) parts.push(`Long-term: ${memory.longTermObjectives[0]}.`);
-    return parts.length ? parts.join(" ") : null;
+    const segments = [];
+    if (memory.ongoingProjects?.length)
+        segments.push(`building ${memory.ongoingProjects.slice(0, 2).join(" and ")}`);
+    if (memory.goals?.length)
+        segments.push(memory.goals[0]);
+    if (memory.interests?.length)
+        segments.push(`enjoys ${memory.interests.slice(0, 3).join(", ")}`);
+    if (memory.challenges?.length)
+        segments.push(`challenge: ${memory.challenges[0]}`);
+    if (!segments.length && memory.longTermObjectives?.length)
+        segments.push(memory.longTermObjectives[0]);
+
+    if (!segments.length) return null;
+    const sentence = segments.join("; ");
+    return sentence.charAt(0).toUpperCase() + sentence.slice(1) + ".";
 };
 
 const extractUserMemory = async (thread, userId) => {
+    const userMsgCount = thread.messages.filter(m => m.role === 'user').length;
+    if (userMsgCount % 4 !== 0) return;
+
+    // Fetch memory FIRST so we can show the model what is already stored.
+    // This gives the model the context needed to skip semantic duplicates and
+    // avoid adding project technologies as personal interests.
+    let memory = await UserMemory.findOne({ userId });
+    if (!memory) memory = new UserMemory({ userId });
+
+    const existingContext = [
+        memory.goals?.length           ? `Goals: ${memory.goals.join("; ")}` : null,
+        memory.ongoingProjects?.length  ? `Projects: ${memory.ongoingProjects.join("; ")}` : null,
+        memory.interests?.length        ? `Interests: ${memory.interests.join("; ")}` : null,
+        memory.challenges?.length       ? `Challenges: ${memory.challenges.join("; ")}` : null,
+        memory.preferences?.length      ? `Preferences: ${memory.preferences.join("; ")}` : null,
+        memory.longTermObjectives?.length ? `Long-term objectives: ${memory.longTermObjectives.join("; ")}` : null,
+    ].filter(Boolean).join("\n");
+
     const chatHistory = thread.messages.slice(-6).map(m => `${m.role}: ${m.content}`).join("\n");
 
     const prompt = [
         {
             role: "system",
-            content: `You are a long-term user profiling agent. Extract personal information from this conversation into this exact JSON format. Use empty arrays if nothing is found. Do not invent information.
+            content: `You are a long-term user profiling agent. Extract only NEW durable personal facts not already captured.
+
+EXISTING PROFILE — do not re-add, rephrase, or paraphrase anything already here:
+${existingContext || "None yet."}
+
+Rules:
+1. Only extract information the user explicitly stated about themselves ("I am...", "I'm building...", "I want to...", "I enjoy...").
+2. Do NOT extract topics they merely asked about, technologies they asked to explain, or educational questions.
+3. For "interests": only genuine personal hobbies and passions (e.g. hiking, fitness, music, reading). Do NOT include programming languages, frameworks, databases, or tools — even ones used in their projects.
+4. If a new item is semantically equivalent to something already in the profile (same meaning, different wording), skip it.
+5. Ask: "Would this fact still be true in 3 months?" Only include it if clearly yes.
+6. Return empty arrays if nothing genuinely new qualifies — that is the correct output when the profile is already complete.
+
+Return this exact JSON:
 {
   "interests": [],
   "goals": [],
@@ -142,7 +192,8 @@ const extractUserMemory = async (thread, userId) => {
   "challenges": [],
   "longTermObjectives": []
 }
-For "discussedTopics", only return values from this exact list: ${PREDEFINED_TOPICS.join(", ")}. Leave it empty if none of these topics were clearly discussed.`
+
+For "discussedTopics" only use: ${PREDEFINED_TOPICS.join(", ")}. Leave empty if none clearly apply.`
         },
         { role: "user", content: chatHistory }
     ];
@@ -154,9 +205,6 @@ For "discussedTopics", only return values from this exact list: ${PREDEFINED_TOP
         if (!incoming?.length) return existing || [];
         return [...new Set([...(existing || []), ...incoming])];
     };
-
-    let memory = await UserMemory.findOne({ userId });
-    if (!memory) memory = new UserMemory({ userId });
 
     // Track new items before merging so we can build highlights
     const newHighlights = [];
@@ -183,6 +231,15 @@ For "discussedTopics", only return values from this exact list: ${PREDEFINED_TOP
     memory.preferences        = mergeArrays(memory.preferences,        extracted.preferences);
     memory.challenges         = mergeArrays(memory.challenges,         extracted.challenges);
     memory.longTermObjectives = mergeArrays(memory.longTermObjectives, extracted.longTermObjectives);
+
+    // Per-category caps — goals is tightest because it's most prone to paraphrase variants
+    memory.interests          = memory.interests.slice(0, 15);
+    memory.goals              = memory.goals.slice(0, 5);
+    memory.lifeEvents         = memory.lifeEvents.slice(0, 10);
+    memory.ongoingProjects    = memory.ongoingProjects.slice(0, 10);
+    memory.preferences        = memory.preferences.slice(0, 10);
+    memory.challenges         = memory.challenges.slice(0, 10);
+    memory.longTermObjectives = memory.longTermObjectives.slice(0, 10);
 
     // Increment topic frequency counts
     if (extracted.discussedTopics?.length) {
@@ -312,14 +369,16 @@ router.post("/chat", async(req, res) => {
         // 4. CONTEXT AWARE MEMORY LAYER (Long-Term + Summary + Thread Profile)
         let dynamicSystemPrompt = "You are a highly personalized AI assistant.";
 
-        // Layer 1: Cross-conversation long-term profile (broadest context)
-        if (userMemory && (userMemory.interests?.length || userMemory.goals?.length || userMemory.ongoingProjects?.length)) {
-            dynamicSystemPrompt += `\n\nLong-term profile of this user:\n`;
-            if (userMemory.profileSummary) dynamicSystemPrompt += `${userMemory.profileSummary}\n`;
-            if (userMemory.interests?.length) dynamicSystemPrompt += `- Interests: ${userMemory.interests.slice(0, 5).join(", ")}\n`;
-            if (userMemory.goals?.length) dynamicSystemPrompt += `- Goals: ${userMemory.goals.slice(0, 3).join(", ")}\n`;
-            if (userMemory.ongoingProjects?.length) dynamicSystemPrompt += `- Active projects: ${userMemory.ongoingProjects.slice(0, 3).join(", ")}\n`;
-            if (userMemory.challenges?.length) dynamicSystemPrompt += `- Recurring challenges: ${userMemory.challenges.slice(0, 3).join(", ")}\n`;
+        // Layer 1: Cross-conversation long-term profile — inject compact summary only
+        if (userMemory?.profileSummary) {
+            dynamicSystemPrompt += `\n\nUser profile: ${userMemory.profileSummary}`;
+        } else if (userMemory) {
+            // Fallback for new users before a summary has been generated
+            const profileParts = [];
+            if (userMemory.goals?.length)           profileParts.push(`goal: ${userMemory.goals[0]}`);
+            if (userMemory.ongoingProjects?.length) profileParts.push(`project: ${userMemory.ongoingProjects[0]}`);
+            if (userMemory.interests?.length)       profileParts.push(`interests: ${userMemory.interests.slice(0, 2).join(", ")}`);
+            if (profileParts.length) dynamicSystemPrompt += `\n\nUser profile: ${profileParts.join("; ")}.`;
         }
 
         // Layer 2: Conversation summary (this thread's compressed history)
@@ -331,7 +390,7 @@ router.post("/chat", async(req, res) => {
         if (thread.profile && (thread.profile.userFacts?.length || thread.profile.activeContext)) {
             dynamicSystemPrompt += `\n\nTailor your responses using this learned context about the user:\n`;
             if (thread.profile.activeContext) dynamicSystemPrompt += `- Current Focus: ${thread.profile.activeContext}\n`;
-            if (thread.profile.userFacts?.length) dynamicSystemPrompt += `- Known Facts: ${thread.profile.userFacts.join(" | ")}\n`;
+            if (thread.profile.userFacts?.length) dynamicSystemPrompt += `- Known Facts: ${thread.profile.userFacts.slice(0, 4).join(" | ")}\n`;
             if (thread.profile.preferences?.length) dynamicSystemPrompt += `- Preferences: ${thread.profile.preferences.join(" | ")}\n`;
         }
         
