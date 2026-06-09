@@ -3,6 +3,7 @@ import { useContext, useEffect, useState } from "react";
 import { MyContext } from "./MyContext.jsx";
 import { v1 as uuidv1 } from "uuid";
 import authFetch from "./utils/authFetch.js";
+import API_BASE from "./utils/api.js";
 
 function Sidebar() {
     const { allThreads, setAllThreads, currThreadId, newChat, setNewChat, setPrompt, setStreamingReply, setCurrThreadId, setPrevChats, setThreadProfile, user, handleLogout } = useContext(MyContext);
@@ -10,7 +11,7 @@ function Sidebar() {
 
     const getAllThreads = async () => {
         try {
-            const response = await authFetch("http://localhost:8080/api/thread");
+            const response = await authFetch(`${API_BASE}/api/thread`);
             if (!response.ok) return;
             const res = await response.json();
             setAllThreads(res.map(thread => ({ threadId: thread.threadId, title: thread.title })));
@@ -38,7 +39,7 @@ function Sidebar() {
         setCurrThreadId(newThreadId);
         setStreamingReply("");
         try {
-            const response = await authFetch(`http://localhost:8080/api/thread/${newThreadId}`);
+            const response = await authFetch(`${API_BASE}/api/thread/${newThreadId}`);
             if (!response.ok) return;
             const res = await response.json();
             setPrevChats(res.messages || res);
@@ -51,7 +52,7 @@ function Sidebar() {
 
     const deleteThread = async (threadId) => {
         try {
-            const response = await authFetch(`http://localhost:8080/api/thread/${threadId}`, { method: "DELETE" });
+            const response = await authFetch(`${API_BASE}/api/thread/${threadId}`, { method: "DELETE" });
             if (!response.ok) return;
             setAllThreads(prev => prev.filter(thread => thread.threadId !== threadId));
             if (threadId === currThreadId) createNewChat();

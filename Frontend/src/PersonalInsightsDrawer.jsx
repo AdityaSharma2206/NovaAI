@@ -1,6 +1,7 @@
 import "./PersonalInsightsDrawer.css";
 import { useState, useEffect } from "react";
 import authFetch from "./utils/authFetch.js";
+import API_BASE from "./utils/api.js";
 
 const timeAgo = (date) => {
     if (!date) return null;
@@ -43,7 +44,7 @@ function PersonalInsightsDrawer({ isOpen, onClose }) {
     useEffect(() => {
         if (!isOpen) return;
         setLoading(true);
-        authFetch("http://localhost:8080/api/user-memory")
+        authFetch(`${API_BASE}/api/user-memory`)
             .then(r => r.json())
             .then(data => { setMemory(data); setLoading(false); })
             .catch(err => { console.log(err); setLoading(false); });

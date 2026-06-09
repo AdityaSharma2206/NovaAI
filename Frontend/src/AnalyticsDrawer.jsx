@@ -1,6 +1,7 @@
 import "./AnalyticsDrawer.css";
 import { useState, useEffect } from "react";
 import authFetch from "./utils/authFetch.js";
+import API_BASE from "./utils/api.js";
 
 function AnalyticsDrawer({ isOpen, onClose }) {
     const [metrics, setMetrics] = useState(null);
@@ -9,7 +10,7 @@ function AnalyticsDrawer({ isOpen, onClose }) {
     useEffect(() => {
         if (!isOpen) return;
         setLoading(true);
-        authFetch("http://localhost:8080/api/analytics")
+        authFetch(`${API_BASE}/api/analytics`)
             .then(r => r.json())
             .then(data => { setMetrics(data); setLoading(false); })
             .catch(err => { console.log(err); setLoading(false); });

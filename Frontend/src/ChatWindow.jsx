@@ -5,6 +5,7 @@ import AnalyticsDrawer from "./AnalyticsDrawer.jsx";
 import { MyContext } from "./MyContext.jsx";
 import { useContext, useState, useRef, useEffect } from "react";
 import authFetch from "./utils/authFetch.js";
+import API_BASE from "./utils/api.js";
 import { ScaleLoader } from "react-spinners";
 
 // ── Profile tab helpers ──────────────────────────────────────────────────────
@@ -68,7 +69,7 @@ function ChatWindow() {
     useEffect(() => {
         if (!isMemoryOpen || memoryTab !== "profile") return;
         setMemoryLoading(true);
-        authFetch("http://localhost:8080/api/user-memory")
+        authFetch(`${API_BASE}/api/user-memory`)
             .then(r => r.json())
             .then(data => { setMemory(data); setMemoryLoading(false); })
             .catch(err => { console.log(err); setMemoryLoading(false); });
@@ -76,7 +77,7 @@ function ChatWindow() {
 
     const fetchLatestProfile = async () => {
         try {
-            const response = await authFetch(`http://localhost:8080/api/thread/${currThreadId}`);
+            const response = await authFetch(`${API_BASE}/api/thread/${currThreadId}`);
             const res = await response.json();
             if (res.profile) setThreadProfile(res.profile);
         } catch(err) {
@@ -113,7 +114,7 @@ function ChatWindow() {
         };
 
         try {
-            const response = await authFetch("http://localhost:8080/api/chat", options);
+            const response = await authFetch(`${API_BASE}/api/chat`, options);
             setLoading(false);
 
             const reader = response.body.getReader();

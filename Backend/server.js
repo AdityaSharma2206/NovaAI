@@ -9,10 +9,14 @@ import userMemoryRoutes from "./routes/userMemory.js";
 import verifyToken from "./middleware/auth.js";
 
 const app = express();
-const PORT = 8080;
+const PORT = process.env.PORT || 8080;
 
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+    origin: process.env.FRONTEND_URL || "*",
+    methods: ["GET", "POST", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"]
+}));
 
 // Public: register and login — no token required
 app.use("/api/auth", authRoutes);
