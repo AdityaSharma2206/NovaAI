@@ -8,7 +8,7 @@ router.get("/user-memory", async (req, res) => {
         const memory = await UserMemory.findOne({ userId: req.user.userId });
         if (!memory) {
             return res.json({
-                interests: [], goals: [], lifeEvents: [], ongoingProjects: [],
+                personalFacts: [], interests: [], goals: [], lifeEvents: [], ongoingProjects: [],
                 preferences: [], challenges: [], longTermObjectives: [],
                 topicFrequency: [], memoryHighlights: [], profileSummary: null
             });

@@ -41,7 +41,6 @@ function App() {
     const [prevChats, setPrevChats] = useState([]);
     const [newChat, setNewChat] = useState(true);
     const [allThreads, setAllThreads] = useState([]);
-    const [threadProfile, setThreadProfile] = useState(null);
 
     const handleLogout = () => {
         localStorage.removeItem("token");
@@ -51,7 +50,6 @@ function App() {
         setCurrThreadId(uuidv1());
         setPrevChats([]);
         setAllThreads([]);
-        setThreadProfile(null);
         setNewChat(true);
     };
 
@@ -71,7 +69,6 @@ function App() {
         newChat, setNewChat,
         prevChats, setPrevChats,
         allThreads, setAllThreads,
-        threadProfile, setThreadProfile,
         user,
         handleLogout
     };
