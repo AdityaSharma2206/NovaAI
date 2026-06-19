@@ -3,6 +3,7 @@ import Thread from "../models/Thread.js";
 import Analytics from "../models/Analytics.js";
 import UserMemory from "../models/UserMemory.js";
 import { getOpenAIAPIResponse, getOpenAIStreamingResponse, getOpenAIEmbedding } from "../utils/openai.js";
+import { logUsage } from "../utils/cost.js";
 
 const router = express.Router();
 
@@ -23,13 +24,14 @@ const cosineSimilarity = (vecA, vecB) => {
 };
 
 // ── Title generation ─────────────────────────────────────────────────────────
-const generateTitle = async (message) => {
-    const title = await getOpenAIAPIResponse([
+const generateTitle = async (message, userId) => {
+    const res = await getOpenAIAPIResponse([
         { role: "system", content: "Generate a short 3-5 word chat title only. No quotes." },
         { role: "user",   content: message }
     ]);
-    if (!title) return "New Chat"; // degrade gracefully instead of crashing/persisting an error
-    return title.replace(/["']/g, "");
+    logUsage(userId, "title", res);
+    if (!res.content) return "New Chat"; // degrade gracefully instead of crashing/persisting an error
+    return res.content.replace(/["']/g, "");
 };
 
 // ── Conversation summarization ───────────────────────────────────────────────
@@ -45,14 +47,15 @@ const maybeSummarize = async (thread) => {
             .map(m => `${m.role.toUpperCase()}: ${m.content}`)
             .join("\n\n");
 
-        const summaryText = await getOpenAIAPIResponse([
+        const summaryRes = await getOpenAIAPIResponse([
             { role: "system", content: "Summarize this conversation in 3-5 concise sentences. Capture key facts, questions, conclusions, and context needed to continue naturally." },
             { role: "user",   content: conversationText }
         ]);
-        if (!summaryText) return; // summarization failed — skip this cycle, retry on next message
+        logUsage(thread.userId, "summary", summaryRes);
+        if (!summaryRes.content) return; // summarization failed — skip this cycle, retry on next message
 
         thread.summary = {
-            content: summaryText,
+            content: summaryRes.content,
             builtFromMessageCount: summarizableCount,
             createdAt: new Date()
         };
@@ -73,7 +76,7 @@ const updateUserProfile = async (userId, thread) => {
     let memory = await UserMemory.findOne({ userId });
     if (!memory) memory = new UserMemory({ userId });
 
-    const updated = await getOpenAIAPIResponse([
+    const updatedRes = await getOpenAIAPIResponse([
         {
             role: "system",
             content: `You maintain a short factual profile about a user based on what they share in conversations.
@@ -85,9 +88,10 @@ If nothing new was shared, return the current profile unchanged. Never add assum
         },
         { role: "user", content: recentUserMessages }
     ]);
-    if (!updated) return; // profile update failed — keep the existing profile unchanged
+    logUsage(userId, "profile", updatedRes);
+    if (!updatedRes.content) return; // profile update failed — keep the existing profile unchanged
 
-    memory.profile = updated;
+    memory.profile = updatedRes.content;
     memory.lastUpdated = new Date();
     await memory.save();
     console.log(`[UserMemory] Profile updated for user ${userId}: "${updated.slice(0, 80)}..."`);
@@ -139,7 +143,9 @@ router.post("/chat", async (req, res) => {
 
     try {
         // 1. Embed the user's message (enables RAG retrieval)
-        const messageEmbedding = await getOpenAIEmbedding(message);
+        const embeddingRes = await getOpenAIEmbedding(message);
+        const messageEmbedding = embeddingRes.embedding;
+        logUsage(req.user.userId, "embedding", embeddingRes);
 
         // 2. Create or load the thread, persisting the user message atomically.
         //    Using $push (instead of load-mutate-save) so concurrent requests to the
@@ -147,7 +153,7 @@ router.post("/chat", async (req, res) => {
         const userMessage = { role: "user", content: message, embedding: messageEmbedding };
         let thread = await Thread.findOne({ threadId, userId: req.user.userId });
         if (!thread) {
-            const title = await generateTitle(message);
+            const title = await generateTitle(message, req.user.userId);
             try {
                 thread = await Thread.create({
                     threadId,
@@ -251,7 +257,7 @@ router.post("/chat", async (req, res) => {
                 if (ttftMs === null) ttftMs = Date.now() - requestStart;
                 res.write(`data: ${JSON.stringify({ token })}\n\n`);
             },
-            async (fullReply, usage) => {
+            async (fullReply, usage, model) => {
                 if (clientGone) return; // client disconnected — don't write or persist a partial reply
 
                 // Stream failed or produced nothing — don't persist an empty assistant message.
@@ -283,15 +289,16 @@ router.post("/chat", async (req, res) => {
                         })
                         .catch(err => console.log("[Background] Error:", err));
 
-                    // Analytics — fire and forget
+                    // Record the reply's cost (Usage owns all cost; Analytics owns performance)
+                    logUsage(req.user.userId, "reply", { usage, model });
+
+                    // Analytics — fire and forget (latency / TTFT / RAG / tokens)
                     Analytics.create({
                         userId:           req.user.userId,
                         threadId,
                         promptTokens:     usage?.prompt_tokens     || 0,
                         completionTokens: usage?.completion_tokens  || 0,
                         totalTokens:      usage?.total_tokens       || 0,
-                        estimatedCostUsd: ((usage?.prompt_tokens || 0) * 0.00000015) +
-                                          ((usage?.completion_tokens || 0) * 0.0000006),
                         latencyMs,
                         ttftMs:           ttftMs || 0,
                         ragUsed

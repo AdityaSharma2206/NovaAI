@@ -13,7 +13,6 @@ const AnalyticsSchema = new mongoose.Schema({
     promptTokens:     { type: Number, default: 0 },
     completionTokens: { type: Number, default: 0 },
     totalTokens:      { type: Number, default: 0 },
-    estimatedCostUsd: { type: Number, default: 0 },
     latencyMs:        { type: Number, default: 0 },
     ttftMs:           { type: Number, default: 0 },
     ragUsed:          { type: Boolean, default: false },

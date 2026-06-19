@@ -1,54 +1,51 @@
 import "dotenv/config";
 
 const getOpenAIAPIResponse = async (messages) => {
+    const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
     const options = {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
         },
-        body: JSON.stringify({
-            model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-            messages: messages
-        })
+        body: JSON.stringify({ model, messages })
     };
     try {
         const response = await fetch("https://api.openai.com/v1/chat/completions", options);
         const data = await response.json();
         if(data.error) throw new Error(data.error.message);
-        return data.choices[0].message.content;
+        return { content: data.choices[0].message.content, usage: data.usage, model };
     } catch(err) {
         console.log("OPENAI ERROR:", err.message);
-        return null; // signal failure so callers skip persisting a bogus value
+        return { content: null, usage: null, model }; // content:null signals failure to callers
     }
 }
 
 // Vector Embedding Generator for Semantic Search
 const getOpenAIEmbedding = async (text) => {
+    const model = "text-embedding-3-small";
     const options = {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
         },
-        body: JSON.stringify({
-            model: "text-embedding-3-small",
-            input: text
-        })
+        body: JSON.stringify({ model, input: text })
     };
     try {
         const response = await fetch("https://api.openai.com/v1/embeddings", options);
         const data = await response.json();
         if(data.error) throw new Error(data.error.message);
-        
-        return data.data[0].embedding; // Returns array of 1536 numbers
+
+        return { embedding: data.data[0].embedding, usage: data.usage, model };
     } catch(err) {
         console.log("EMBEDDING ERROR:", err.message);
-        return [];
+        return { embedding: [], usage: null, model };
     }
 }
 
 const getOpenAIStreamingResponse = async (messages, onChunk, onDone, signal) => {
+    const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
     const options = {
         method: "POST",
         headers: {
@@ -56,7 +53,7 @@ const getOpenAIStreamingResponse = async (messages, onChunk, onDone, signal) => 
             "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
         },
         body: JSON.stringify({
-            model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+            model,
             messages,
             stream: true,
             stream_options: { include_usage: true }  // asks OpenAI to send real token counts
@@ -83,7 +80,7 @@ const getOpenAIStreamingResponse = async (messages, onChunk, onDone, signal) => 
                 if (!line.startsWith("data: ")) continue;
                 const payload = line.slice(6).trim();
                 if (payload === "[DONE]") {
-                    onDone(assembled, usage);
+                    onDone(assembled, usage, model);
                     return;
                 }
                 try {
@@ -98,10 +95,10 @@ const getOpenAIStreamingResponse = async (messages, onChunk, onDone, signal) => 
                 } catch { /* malformed chunk, skip */ }
             }
         }
-        onDone(assembled, usage);
+        onDone(assembled, usage, model);
     } catch (err) {
         if (err.name !== "AbortError") console.log("OPENAI STREAMING ERROR:", err.message);
-        onDone("", null);
+        onDone("", null, model);
     }
 };
 
