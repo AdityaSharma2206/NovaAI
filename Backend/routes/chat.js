@@ -96,7 +96,7 @@ If nothing new was shared, return the current profile unchanged. Never add assum
     memory.profile = updatedRes.content;
     memory.lastUpdated = new Date();
     await memory.save();
-    console.log(`[UserMemory] Profile updated for user ${userId}: "${updated.slice(0, 80)}..."`);
+    console.log(`[UserMemory] Profile updated for user ${userId}: "${updatedRes.content.slice(0, 80)}..."`);
 };
 
 // ── Routes ───────────────────────────────────────────────────────────────────
