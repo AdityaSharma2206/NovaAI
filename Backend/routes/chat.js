@@ -263,12 +263,12 @@ router.post("/chat", async (req, res) => {
                 }
                 const latencyMs = Date.now() - requestStart;
                 try {
-                    const replyEmbedding = await getOpenAIEmbedding(fullReply);
-                    // Atomic append so concurrent requests can't clobber the messages array
+                    // Atomic append so concurrent requests can't clobber the messages array.
+                    // Assistant replies are stored without an embedding — retrieval only searches user messages.
                     await Thread.updateOne(
                         { _id: thread._id },
                         {
-                            $push: { messages: { role: "assistant", content: fullReply, embedding: replyEmbedding } },
+                            $push: { messages: { role: "assistant", content: fullReply } },
                             $set:  { updatedAt: new Date() }
                         }
                     );

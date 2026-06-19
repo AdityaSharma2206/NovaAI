@@ -44,13 +44,6 @@ const ThreadSchema = new mongoose.Schema({
         type: Date,
         default: Date.now
     },
-    profile: {
-        // NEW: Generalist Enterprise Schema
-        userFacts: [String],
-        preferences: [String],
-        activeContext: String,
-        lastUpdated: Date
-    },
     summary: {
         content: String,
         builtFromMessageCount: Number, // how many non-system messages were compressed
