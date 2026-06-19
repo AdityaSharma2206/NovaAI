@@ -98,7 +98,7 @@ npm run dev        # starts on http://localhost:8080
 MONGODB_URI=your-mongodb-connection-string   # required
 JWT_SECRET=your-long-random-secret           # required
 OPENAI_API_KEY=sk-...                        # required
-OPENAI_MODEL=gpt-4o-mini                     # optional (default: gpt-4o-mini)
+OPENAI_MODEL=gpt-4.1-mini                    # optional (default: gpt-4.1-mini)
 PORT=8080                                    # optional
 JWT_EXPIRES_IN=7d                            # optional
 FRONTEND_URL=http://localhost:5173           # optional (CORS allow-origin)

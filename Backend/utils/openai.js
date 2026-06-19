@@ -1,7 +1,7 @@
 import "dotenv/config";
 
 const getOpenAIAPIResponse = async (messages) => {
-    const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+    const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
     const options = {
         method: "POST",
         headers: {
@@ -45,7 +45,7 @@ const getOpenAIEmbedding = async (text) => {
 }
 
 const getOpenAIStreamingResponse = async (messages, onChunk, onDone, signal) => {
-    const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+    const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
     const options = {
         method: "POST",
         headers: {
