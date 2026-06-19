@@ -34,6 +34,7 @@ function ChatWindow() {
     // Abort any in-flight stream when the active thread changes (switch thread / new chat)
     // or when the component unmounts (logout). Prevents a reply landing in the wrong thread.
     useEffect(() => {
+        textareaRef.current?.focus(); // keep the input ready when opening / switching threads
         return () => abortRef.current?.abort();
     }, [currThreadId]);
 
@@ -124,6 +125,7 @@ function ChatWindow() {
             if (abortRef.current === controller) abortRef.current = null;
             setLoading(false);
             setIsStreaming(false);
+            textareaRef.current?.focus(); // return focus so the user can keep typing
         }
     };
 

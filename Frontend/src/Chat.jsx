@@ -1,5 +1,5 @@
 import "./Chat.css";
-import { useContext, useEffect, useRef } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { MyContext } from "./MyContext";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
@@ -17,10 +17,13 @@ const SUGGESTIONS = [
 function Chat({ debugMode, isStreaming, onRegenerate }) {
     const { newChat, prevChats, streamingReply, setPrompt } = useContext(MyContext);
     const chatEndRef = useRef(null);
+    const [copiedIdx, setCopiedIdx] = useState(null);
 
-    const copyToClipboard = async (text) => {
+    const copyToClipboard = async (text, idx) => {
         try {
             await navigator.clipboard.writeText(text);
+            setCopiedIdx(idx);
+            setTimeout(() => setCopiedIdx(c => (c === idx ? null : c)), 1500);
         } catch(err) {
             console.log(err);
         }
@@ -55,10 +58,10 @@ function Chat({ debugMode, isStreaming, onRegenerate }) {
                                     <p className="user-text">{chat.content}</p>
                                     <button
                                         className="copy-btn user-copy"
-                                        onClick={() => copyToClipboard(chat.content)}
+                                        onClick={() => copyToClipboard(chat.content, idx)}
                                         title="Copy prompt"
                                     >
-                                        <i className="fa-regular fa-copy"></i>
+                                        <i className={copiedIdx === idx ? "fa-solid fa-check" : "fa-regular fa-copy"}></i>
                                     </button>
                                 </>
                             ) : (
@@ -70,10 +73,10 @@ function Chat({ debugMode, isStreaming, onRegenerate }) {
                                     </div>
                                     <button
                                         className="copy-btn"
-                                        onClick={() => copyToClipboard(chat.content)}
+                                        onClick={() => copyToClipboard(chat.content, idx)}
                                         title="Copy reply"
                                     >
-                                        <i className="fa-regular fa-copy"></i>
+                                        <i className={copiedIdx === idx ? "fa-solid fa-check" : "fa-regular fa-copy"}></i>
                                     </button>
                                     {onRegenerate && idx === prevChats.length - 1 && !isStreaming && (
                                         <button
