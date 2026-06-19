@@ -35,6 +35,16 @@ const authLimiter = rateLimit({
     message: { error: "Too many attempts. Please try again later." }
 });
 
+// Health check — public, for uptime monitoring / deploy platform probes
+app.get("/api/health", (req, res) => {
+    const states = ["disconnected", "connected", "connecting", "disconnecting"];
+    res.json({
+        status: "ok",
+        db: states[mongoose.connection.readyState] || "unknown",
+        uptime: Math.round(process.uptime())
+    });
+});
+
 // Public: register and login — no token required
 app.use("/api/auth", authLimiter, authRoutes);
 

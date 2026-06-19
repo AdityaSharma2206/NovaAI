@@ -140,47 +140,73 @@ router.delete("/thread/:threadId", async (req, res) => {
 
 // ── Main chat endpoint ───────────────────────────────────────────────────────
 router.post("/chat", async (req, res) => {
-    const { threadId, message, debug } = req.body;
-    if (!threadId || !message) return res.status(400).json({ error: "Missing required fields" });
+    const { threadId, message, debug, regenerate } = req.body;
+    if (!threadId || (!regenerate && !message)) return res.status(400).json({ error: "Missing required fields" });
 
     try {
-        // 1. Embed the user's message (enables RAG retrieval)
-        const embeddingRes = await getOpenAIEmbedding(message);
-        const messageEmbedding = embeddingRes.embedding;
-        logUsage(req.user.userId, "embedding", embeddingRes);
-
-        // 2. Create or load the thread, persisting the user message atomically.
-        //    Using $push (instead of load-mutate-save) so concurrent requests to the
-        //    same thread can't overwrite each other's messages array.
-        const userMessage = { role: "user", content: message, embedding: messageEmbedding };
+        // 1 & 2. Resolve the query + ensure the thread/messages are in the right state.
+        //    Normal turn: embed the new message and append it atomically ($push so concurrent
+        //    requests can't clobber the array). Regenerate: reuse the last user message, drop
+        //    the stale assistant reply, and don't append a new turn.
         let thread = await Thread.findOne({ threadId, userId: req.user.userId });
-        if (!thread) {
-            const title = await generateTitle(message, req.user.userId);
-            try {
-                thread = await Thread.create({
-                    threadId,
-                    userId: req.user.userId,
-                    title,
-                    messages: [
-                        { role: "system", content: "You are a helpful AI assistant." },
-                        userMessage
-                    ]
-                });
-            } catch (err) {
-                // Another request created this thread first (concurrent first message).
-                if (err.code !== 11000) throw err;
-                await Thread.updateOne(
-                    { threadId, userId: req.user.userId },
-                    { $push: { messages: userMessage }, $set: { updatedAt: new Date() } }
-                );
-                thread = await Thread.findOne({ threadId, userId: req.user.userId });
+        let messageEmbedding;
+        let queryText;
+
+        if (regenerate) {
+            if (!thread || thread.messages.length === 0) {
+                return res.status(400).json({ error: "Nothing to regenerate" });
+            }
+            // Remove the previous assistant reply so we don't keep a stale answer.
+            if (thread.messages[thread.messages.length - 1].role === "assistant") {
+                await Thread.updateOne({ _id: thread._id }, { $pop: { messages: 1 } });
+                thread.messages.pop();
+            }
+            const lastUser = [...thread.messages].reverse().find(m => m.role === "user");
+            if (!lastUser) return res.status(400).json({ error: "No user message to regenerate from" });
+
+            queryText = lastUser.content;
+            if (lastUser.embedding?.length > 0) {
+                messageEmbedding = lastUser.embedding; // reuse stored embedding — no extra cost
+            } else {
+                const embeddingRes = await getOpenAIEmbedding(queryText);
+                messageEmbedding = embeddingRes.embedding;
+                logUsage(req.user.userId, "embedding", embeddingRes);
             }
         } else {
-            await Thread.updateOne(
-                { _id: thread._id },
-                { $push: { messages: userMessage }, $set: { updatedAt: new Date() } }
-            );
-            thread.messages.push(userMessage);
+            const embeddingRes = await getOpenAIEmbedding(message);
+            messageEmbedding = embeddingRes.embedding;
+            logUsage(req.user.userId, "embedding", embeddingRes);
+            queryText = message;
+
+            const userMessage = { role: "user", content: message, embedding: messageEmbedding };
+            if (!thread) {
+                const title = await generateTitle(message, req.user.userId);
+                try {
+                    thread = await Thread.create({
+                        threadId,
+                        userId: req.user.userId,
+                        title,
+                        messages: [
+                            { role: "system", content: "You are a helpful AI assistant." },
+                            userMessage
+                        ]
+                    });
+                } catch (err) {
+                    // Another request created this thread first (concurrent first message).
+                    if (err.code !== 11000) throw err;
+                    await Thread.updateOne(
+                        { threadId, userId: req.user.userId },
+                        { $push: { messages: userMessage }, $set: { updatedAt: new Date() } }
+                    );
+                    thread = await Thread.findOne({ threadId, userId: req.user.userId });
+                }
+            } else {
+                await Thread.updateOne(
+                    { _id: thread._id },
+                    { $push: { messages: userMessage }, $set: { updatedAt: new Date() } }
+                );
+                thread.messages.push(userMessage);
+            }
         }
 
         // 3. Cross-thread RAG — search ALL of the user's past messages for relevant context
@@ -189,7 +215,7 @@ router.post("/chat", async (req, res) => {
             t.messages
                 .filter(m => m.role === "user")
                 .map(m => ({ content: m.content, embedding: m.embedding }))
-        ).filter(m => m.embedding?.length > 0 && m.content !== message);
+        ).filter(m => m.embedding?.length > 0 && m.content !== queryText);
 
         // Score every candidate against the query, then rank by similarity
         const scored = candidates
@@ -222,7 +248,7 @@ router.post("/chat", async (req, res) => {
                 reason: reasonFor(i + 1, m.score)
             }));
             ragTrace = {
-                query: message,
+                query: queryText,
                 params: { topK: RAG_TOP_K, threshold: RAG_THRESHOLD },
                 candidatesScored: scored.length,
                 selected: ranked.filter(r => r.selected),

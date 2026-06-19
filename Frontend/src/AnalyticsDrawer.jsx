@@ -26,6 +26,13 @@ function AnalyticsDrawer({ isOpen, onClose }) {
     const promptPct   = total > 0 ? Math.round((metrics.totalPromptTokens / total) * 100) : 0;
     const completePct = 100 - promptPct;
 
+    // Cost split across every OpenAI call type (bars are relative to the largest)
+    const COST_ORDER  = ["reply", "embedding", "profile", "summary", "title"];
+    const costEntries = metrics?.costByType
+        ? COST_ORDER.filter(k => metrics.costByType[k] != null).map(k => [k, metrics.costByType[k]])
+        : [];
+    const maxCost     = costEntries.reduce((m, [, v]) => Math.max(m, v), 0);
+
     return (
         <>
             {isOpen && <div className="drawer-overlay" onClick={onClose}></div>}
@@ -100,6 +107,24 @@ function AnalyticsDrawer({ isOpen, onClose }) {
                                     <span className="token-bar-value">{fmt(metrics.totalCompletionTokens)} ({completePct}%)</span>
                                 </div>
                             </div>
+
+                            {costEntries.length > 0 && (
+                                <div className="insight-section">
+                                    <h5><i className="fa-solid fa-coins"></i> Cost by Type</h5>
+                                    {costEntries.map(([type, cost]) => (
+                                        <div className="token-bar-row" key={type}>
+                                            <span className="token-bar-label cost-type-label">{type}</span>
+                                            <div className="token-bar-track">
+                                                <div
+                                                    className="token-bar-fill cost-fill"
+                                                    style={{ width: `${maxCost > 0 ? (cost / maxCost) * 100 : 0}%` }}
+                                                ></div>
+                                            </div>
+                                            <span className="token-bar-value">${cost.toFixed(6)}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
 
                             <div className="insight-section">
                                 <h5><i className="fa-solid fa-database"></i> RAG Activity</h5>

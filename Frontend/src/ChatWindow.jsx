@@ -29,6 +29,7 @@ function ChatWindow() {
 
     const textareaRef = useRef(null);
     const abortRef = useRef(null);
+    const manualStopRef = useRef(false); // true when the user clicks Stop (vs. an abort from thread switch)
 
     // Abort any in-flight stream when the active thread changes (switch thread / new chat)
     // or when the component unmounts (logout). Prevents a reply landing in the wrong thread.
@@ -36,31 +37,21 @@ function ChatWindow() {
         return () => abortRef.current?.abort();
     }, [currThreadId]);
 
-    const getReply = async () => {
-        if (!prompt.trim() || isStreaming) return;
-
-        const isFirstMessage = newChat;
-        const currentPrompt = prompt;
-
+    // Shared streaming routine used by both a normal send and a regenerate.
+    const runChatStream = async (body, { isFirstMessage = false, fallbackTitle = "" } = {}) => {
         setLoading(true);
         setIsStreaming(true);
-        setNewChat(false);
-        setPrompt("");
-        if (textareaRef.current) textareaRef.current.style.height = "auto";
-
-        setPrevChats(prev => [...prev, { role: "user", content: currentPrompt }]);
-
-        if (isFirstMessage) {
-            setAllThreads(prev => [{ threadId: currThreadId, title: "New Chat" }, ...prev]);
-        }
 
         const controller = new AbortController();
         abortRef.current = controller;
 
+        let assembled = "";
+        let ragTrace = null;
+
         try {
             const response = await authFetch(`${API_BASE}/api/chat`, {
                 method: "POST",
-                body: JSON.stringify({ message: currentPrompt, threadId: currThreadId, debug: debugMode }),
+                body: JSON.stringify(body),
                 signal: controller.signal
             });
             setLoading(false);
@@ -81,8 +72,6 @@ function ChatWindow() {
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let buffer = "";
-            let assembled = "";
-            let ragTrace = null;
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -111,7 +100,7 @@ function ChatWindow() {
                             if (isFirstMessage) {
                                 setAllThreads(prev => prev.map(t =>
                                     t.threadId === currThreadId
-                                        ? { ...t, title: parsed.title || currentPrompt }
+                                        ? { ...t, title: parsed.title || fallbackTitle }
                                         : t
                                 ));
                             }
@@ -125,12 +114,58 @@ function ChatWindow() {
         } catch (err) {
             // An abort (thread switch / unmount) is expected — not a real error to surface.
             if (err.name !== "AbortError") console.log(err);
+            // If the user clicked Stop, keep whatever streamed so far as the reply.
+            if (manualStopRef.current && assembled) {
+                setPrevChats(prev => [...prev, { role: "assistant", content: assembled, rag: ragTrace }]);
+            }
             setStreamingReply("");
         } finally {
+            manualStopRef.current = false;
             if (abortRef.current === controller) abortRef.current = null;
             setLoading(false);
             setIsStreaming(false);
         }
+    };
+
+    const getReply = async () => {
+        if (!prompt.trim() || isStreaming) return;
+
+        const isFirstMessage = newChat;
+        const currentPrompt = prompt;
+
+        setNewChat(false);
+        setPrompt("");
+        if (textareaRef.current) textareaRef.current.style.height = "auto";
+
+        setPrevChats(prev => [...prev, { role: "user", content: currentPrompt }]);
+        if (isFirstMessage) {
+            setAllThreads(prev => [{ threadId: currThreadId, title: "New Chat" }, ...prev]);
+        }
+
+        await runChatStream(
+            { message: currentPrompt, threadId: currThreadId, debug: debugMode },
+            { isFirstMessage, fallbackTitle: currentPrompt }
+        );
+    };
+
+    // Cancel the in-flight reply, keeping whatever has streamed so far (see runChatStream catch).
+    const handleStop = () => {
+        manualStopRef.current = true;
+        abortRef.current?.abort();
+    };
+
+    // Re-run the last user message for a fresh answer. The backend drops the stale reply.
+    const handleRegenerate = async () => {
+        if (isStreaming) return;
+        setPrevChats(prev => {
+            const copy = [...prev];
+            if (copy.length && copy[copy.length - 1].role === "assistant") copy.pop();
+            return copy;
+        });
+        await runChatStream(
+            { threadId: currThreadId, regenerate: true, debug: debugMode },
+            { isFirstMessage: false }
+        );
     };
 
     return (
@@ -157,7 +192,7 @@ function ChatWindow() {
             <AnalyticsDrawer isOpen={isAnalyticsOpen} onClose={() => setIsAnalyticsOpen(false)} />
 
             <div className="chat-content">
-                <Chat debugMode={debugMode} />
+                <Chat debugMode={debugMode} isStreaming={isStreaming} onRegenerate={handleRegenerate} />
                 <div className="loader-container">
                     <ScaleLoader color="var(--accent-primary)" loading={loading} height={20} />
                 </div>
@@ -182,9 +217,15 @@ function ChatWindow() {
                             }
                         }}
                     />
-                    <button id="submit" onClick={getReply} disabled={!prompt.trim() || loading || isStreaming}>
-                        <i className="fa-solid fa-paper-plane"></i>
-                    </button>
+                    {isStreaming ? (
+                        <button id="submit" className="stop-btn" onClick={handleStop} title="Stop generating">
+                            <i className="fa-solid fa-stop"></i>
+                        </button>
+                    ) : (
+                        <button id="submit" onClick={getReply} disabled={!prompt.trim() || loading}>
+                            <i className="fa-solid fa-paper-plane"></i>
+                        </button>
+                    )}
                 </div>
                 <p className="info">NovaAI uses semantic search to remember context across all your conversations.</p>
             </div>

@@ -76,6 +76,14 @@
     background: #38bdf8;
 }
 
+.cost-fill {
+    background: #a78bfa;
+}
+
+.cost-type-label {
+    text-transform: capitalize;
+}
+
 .token-bar-value {
     font-size: 0.75rem;
     color: var(--text-secondary);

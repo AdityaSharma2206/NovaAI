@@ -14,7 +14,7 @@ const SUGGESTIONS = [
     "What should I focus on today?",
 ];
 
-function Chat({ debugMode }) {
+function Chat({ debugMode, isStreaming, onRegenerate }) {
     const { newChat, prevChats, streamingReply, setPrompt } = useContext(MyContext);
     const chatEndRef = useRef(null);
 
@@ -75,6 +75,15 @@ function Chat({ debugMode }) {
                                     >
                                         <i className="fa-regular fa-copy"></i>
                                     </button>
+                                    {onRegenerate && idx === prevChats.length - 1 && !isStreaming && (
+                                        <button
+                                            className="copy-btn regen-btn"
+                                            onClick={onRegenerate}
+                                            title="Regenerate response"
+                                        >
+                                            <i className="fa-solid fa-rotate-right"></i>
+                                        </button>
+                                    )}
                                     {debugMode && chat.rag && <RagDebugPanel trace={chat.rag} />}
                                 </>
                             )}
