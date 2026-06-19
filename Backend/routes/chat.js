@@ -28,6 +28,7 @@ const generateTitle = async (message) => {
         { role: "system", content: "Generate a short 3-5 word chat title only. No quotes." },
         { role: "user",   content: message }
     ]);
+    if (!title) return "New Chat"; // degrade gracefully instead of crashing/persisting an error
     return title.replace(/["']/g, "");
 };
 
@@ -48,13 +49,15 @@ const maybeSummarize = async (thread) => {
             { role: "system", content: "Summarize this conversation in 3-5 concise sentences. Capture key facts, questions, conclusions, and context needed to continue naturally." },
             { role: "user",   content: conversationText }
         ]);
+        if (!summaryText) return; // summarization failed — skip this cycle, retry on next message
 
         thread.summary = {
             content: summaryText,
             builtFromMessageCount: summarizableCount,
             createdAt: new Date()
         };
-        await thread.save();
+        // Atomic field update — never re-save the whole document (would clobber concurrent message writes)
+        await Thread.updateOne({ _id: thread._id }, { $set: { summary: thread.summary } });
         console.log(`[Summary] Thread ${thread.threadId}: compressed ${summarizableCount} messages`);
     }
 };
@@ -82,6 +85,7 @@ If nothing new was shared, return the current profile unchanged. Never add assum
         },
         { role: "user", content: recentUserMessages }
     ]);
+    if (!updated) return; // profile update failed — keep the existing profile unchanged
 
     memory.profile = updated;
     memory.lastUpdated = new Date();
@@ -102,9 +106,16 @@ router.get("/thread", async (req, res) => {
 
 router.get("/thread/:threadId", async (req, res) => {
     try {
-        const thread = await Thread.findOne({ threadId: req.params.threadId, userId: req.user.userId });
+        // Exclude embeddings at the DB level — the client only needs role/content,
+        // and the 1536-float vectors would bloat the payload by megabytes.
+        const thread = await Thread.findOne(
+            { threadId: req.params.threadId, userId: req.user.userId },
+            { "messages.embedding": 0 }
+        ).lean();
         if (!thread) return res.status(404).json({ error: "Thread not found" });
-        const visibleMessages = thread.messages.filter(m => m.role !== "system");
+        const visibleMessages = thread.messages
+            .filter(m => m.role !== "system")
+            .map(m => ({ role: m.role, content: m.content }));
         res.json({ messages: visibleMessages });
     } catch {
         res.status(500).json({ error: "Failed to fetch thread" });
@@ -130,21 +141,38 @@ router.post("/chat", async (req, res) => {
         // 1. Embed the user's message (enables RAG retrieval)
         const messageEmbedding = await getOpenAIEmbedding(message);
 
-        // 2. Create or load the thread
+        // 2. Create or load the thread, persisting the user message atomically.
+        //    Using $push (instead of load-mutate-save) so concurrent requests to the
+        //    same thread can't overwrite each other's messages array.
+        const userMessage = { role: "user", content: message, embedding: messageEmbedding };
         let thread = await Thread.findOne({ threadId, userId: req.user.userId });
         if (!thread) {
             const title = await generateTitle(message);
-            thread = new Thread({
-                threadId,
-                userId: req.user.userId,
-                title,
-                messages: [
-                    { role: "system", content: "You are a helpful AI assistant." },
-                    { role: "user",   content: message, embedding: messageEmbedding }
-                ]
-            });
+            try {
+                thread = await Thread.create({
+                    threadId,
+                    userId: req.user.userId,
+                    title,
+                    messages: [
+                        { role: "system", content: "You are a helpful AI assistant." },
+                        userMessage
+                    ]
+                });
+            } catch (err) {
+                // Another request created this thread first (concurrent first message).
+                if (err.code !== 11000) throw err;
+                await Thread.updateOne(
+                    { threadId, userId: req.user.userId },
+                    { $push: { messages: userMessage }, $set: { updatedAt: new Date() } }
+                );
+                thread = await Thread.findOne({ threadId, userId: req.user.userId });
+            }
         } else {
-            thread.messages.push({ role: "user", content: message, embedding: messageEmbedding });
+            await Thread.updateOne(
+                { _id: thread._id },
+                { $push: { messages: userMessage }, $set: { updatedAt: new Date() } }
+            );
+            thread.messages.push(userMessage);
         }
 
         // 3. Cross-thread RAG — search ALL of the user's past messages for relevant context
@@ -184,12 +212,16 @@ router.post("/chat", async (req, res) => {
         }
 
         systemPrompt += ragContext;
-        thread.messages[0].content = systemPrompt;
 
-        // 5. Stream the AI response via SSE
+        // 5. Stream the AI response via SSE.
+        //    The dynamic system prompt is assembled in-memory only — it is rebuilt every
+        //    request, so there is no need to persist it back onto the document.
         const recentMessages = [
-            thread.messages[0],
-            ...thread.messages.slice(-RECENT_WINDOW).map(m => ({ role: m.role, content: m.content }))
+            { role: "system", content: systemPrompt },
+            ...thread.messages
+                .filter(m => m.role !== "system")
+                .slice(-RECENT_WINDOW)
+                .map(m => ({ role: m.role, content: m.content }))
         ];
 
         const ragUsed = ragContext !== "";
@@ -201,23 +233,54 @@ router.post("/chat", async (req, res) => {
         res.setHeader("Connection", "keep-alive");
         res.flushHeaders();
 
+        // Abort the upstream OpenAI request if the client disconnects mid-stream,
+        // so we stop spending tokens/CPU and don't write to a dead socket.
+        const upstreamController = new AbortController();
+        let clientGone = false;
+        req.on("close", () => {
+            if (!res.writableEnded) {
+                clientGone = true;
+                upstreamController.abort();
+            }
+        });
+
         await getOpenAIStreamingResponse(
             recentMessages,
             (token) => {
+                if (clientGone) return;
                 if (ttftMs === null) ttftMs = Date.now() - requestStart;
                 res.write(`data: ${JSON.stringify({ token })}\n\n`);
             },
             async (fullReply, usage) => {
+                if (clientGone) return; // client disconnected — don't write or persist a partial reply
+
+                // Stream failed or produced nothing — don't persist an empty assistant message.
+                // The user's message was already saved before streaming, so it is not lost.
+                if (!fullReply || !fullReply.trim()) {
+                    res.write(`data: ${JSON.stringify({ error: "No response was generated. Please try again." })}\n\n`);
+                    res.end();
+                    return;
+                }
                 const latencyMs = Date.now() - requestStart;
                 try {
                     const replyEmbedding = await getOpenAIEmbedding(fullReply);
-                    thread.messages.push({ role: "assistant", content: fullReply, embedding: replyEmbedding });
-                    thread.updatedAt = new Date();
-                    await thread.save();
+                    // Atomic append so concurrent requests can't clobber the messages array
+                    await Thread.updateOne(
+                        { _id: thread._id },
+                        {
+                            $push: { messages: { role: "assistant", content: fullReply, embedding: replyEmbedding } },
+                            $set:  { updatedAt: new Date() }
+                        }
+                    );
 
-                    // Background: summarize long threads, then update user profile
-                    maybeSummarize(thread)
-                        .then(() => updateUserProfile(req.user.userId, thread))
+                    // Background: summarize long threads, then update user profile.
+                    // Re-read a fresh copy so these jobs operate on the latest persisted state.
+                    Thread.findOne({ _id: thread._id })
+                        .then(async (fresh) => {
+                            if (!fresh) return;
+                            await maybeSummarize(fresh);
+                            await updateUserProfile(req.user.userId, fresh);
+                        })
                         .catch(err => console.log("[Background] Error:", err));
 
                     // Analytics — fire and forget
@@ -241,7 +304,8 @@ router.post("/chat", async (req, res) => {
                 } finally {
                     res.end();
                 }
-            }
+            },
+            upstreamController.signal
         );
 
     } catch (err) {

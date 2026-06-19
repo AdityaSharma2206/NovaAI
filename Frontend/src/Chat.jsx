@@ -4,6 +4,7 @@ import { MyContext } from "./MyContext";
 import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import "highlight.js/styles/github-dark.css";
+import logo from "./assets/blacklogo.png";
 
 const SUGGESTIONS = [
     "What are you working on right now?",
@@ -32,7 +33,7 @@ function Chat() {
         <div className="chats-container">
             {newChat && !streamingReply && (
                 <div className="empty-state">
-                    <img src="src/assets/blacklogo.png" alt="NovaAI Logo" className="empty-logo" />
+                    <img src={logo} alt="NovaAI Logo" className="empty-logo" />
                     <h1>How can I help you today?</h1>
                     <div className="suggestion-chips">
                         {SUGGESTIONS.map((s, i) => (

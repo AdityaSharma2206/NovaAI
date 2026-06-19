@@ -19,7 +19,7 @@ const getOpenAIAPIResponse = async (messages) => {
         return data.choices[0].message.content;
     } catch(err) {
         console.log("OPENAI ERROR:", err.message);
-        return "Sorry, something went wrong.";
+        return null; // signal failure so callers skip persisting a bogus value
     }
 }
 
@@ -72,7 +72,7 @@ const getOpenAIEmbedding = async (text) => {
     }
 }
 
-const getOpenAIStreamingResponse = async (messages, onChunk, onDone) => {
+const getOpenAIStreamingResponse = async (messages, onChunk, onDone, signal) => {
     const options = {
         method: "POST",
         headers: {
@@ -84,7 +84,8 @@ const getOpenAIStreamingResponse = async (messages, onChunk, onDone) => {
             messages,
             stream: true,
             stream_options: { include_usage: true }  // asks OpenAI to send real token counts
-        })
+        }),
+        signal  // aborts the upstream request if the client disconnects
     };
     try {
         const response = await fetch("https://api.openai.com/v1/chat/completions", options);
@@ -123,7 +124,7 @@ const getOpenAIStreamingResponse = async (messages, onChunk, onDone) => {
         }
         onDone(assembled, usage);
     } catch (err) {
-        console.log("OPENAI STREAMING ERROR:", err.message);
+        if (err.name !== "AbortError") console.log("OPENAI STREAMING ERROR:", err.message);
         onDone("", null);
     }
 };

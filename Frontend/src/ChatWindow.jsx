@@ -2,7 +2,7 @@ import "./ChatWindow.css";
 import Chat from "./Chat.jsx";
 import AnalyticsDrawer from "./AnalyticsDrawer.jsx";
 import { MyContext } from "./MyContext.jsx";
-import { useContext, useState, useRef } from "react";
+import { useContext, useState, useRef, useEffect } from "react";
 import authFetch from "./utils/authFetch.js";
 import API_BASE from "./utils/api.js";
 import { ScaleLoader } from "react-spinners";
@@ -15,17 +15,26 @@ function ChatWindow() {
     } = useContext(MyContext);
 
     const [loading, setLoading]               = useState(false);
+    const [isStreaming, setIsStreaming]       = useState(false);
     const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
 
     const textareaRef = useRef(null);
+    const abortRef = useRef(null);
+
+    // Abort any in-flight stream when the active thread changes (switch thread / new chat)
+    // or when the component unmounts (logout). Prevents a reply landing in the wrong thread.
+    useEffect(() => {
+        return () => abortRef.current?.abort();
+    }, [currThreadId]);
 
     const getReply = async () => {
-        if (!prompt.trim()) return;
+        if (!prompt.trim() || isStreaming) return;
 
         const isFirstMessage = newChat;
         const currentPrompt = prompt;
 
         setLoading(true);
+        setIsStreaming(true);
         setNewChat(false);
         setPrompt("");
         if (textareaRef.current) textareaRef.current.style.height = "auto";
@@ -36,12 +45,29 @@ function ChatWindow() {
             setAllThreads(prev => [{ threadId: currThreadId, title: "New Chat" }, ...prev]);
         }
 
+        const controller = new AbortController();
+        abortRef.current = controller;
+
         try {
             const response = await authFetch(`${API_BASE}/api/chat`, {
                 method: "POST",
-                body: JSON.stringify({ message: currentPrompt, threadId: currThreadId })
+                body: JSON.stringify({ message: currentPrompt, threadId: currThreadId }),
+                signal: controller.signal
             });
             setLoading(false);
+
+            // A non-streaming error response (400/401/500) arrives as JSON, not SSE.
+            // Surface it instead of feeding an error body into the stream parser.
+            if (!response.ok) {
+                let errMsg = "Something went wrong. Please try again.";
+                try {
+                    const data = await response.json();
+                    if (data?.error) errMsg = data.error;
+                } catch { /* non-JSON error body */ }
+                setStreamingReply("");
+                setPrevChats(prev => [...prev, { role: "assistant", content: `⚠️ ${errMsg}` }]);
+                return;
+            }
 
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
@@ -78,17 +104,21 @@ function ChatWindow() {
                                 ));
                             }
                         } else if (parsed.error) {
-                            console.log("Stream error:", parsed.error);
                             setStreamingReply("");
+                            setPrevChats(prev => [...prev, { role: "assistant", content: `⚠️ ${parsed.error}` }]);
                         }
                     } catch { /* malformed SSE line */ }
                 }
             }
         } catch (err) {
-            console.log(err);
+            // An abort (thread switch / unmount) is expected — not a real error to surface.
+            if (err.name !== "AbortError") console.log(err);
             setStreamingReply("");
+        } finally {
+            if (abortRef.current === controller) abortRef.current = null;
+            setLoading(false);
+            setIsStreaming(false);
         }
-        setLoading(false);
     };
 
     return (
@@ -127,11 +157,11 @@ function ChatWindow() {
                         onKeyDown={(e) => {
                             if (e.key === "Enter" && !e.shiftKey) {
                                 e.preventDefault();
-                                if (prompt.trim() && !loading) getReply();
+                                if (prompt.trim() && !loading && !isStreaming) getReply();
                             }
                         }}
                     />
-                    <button id="submit" onClick={getReply} disabled={!prompt.trim() || loading}>
+                    <button id="submit" onClick={getReply} disabled={!prompt.trim() || loading || isStreaming}>
                         <i className="fa-solid fa-paper-plane"></i>
                     </button>
                 </div>

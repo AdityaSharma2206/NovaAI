@@ -30,6 +30,10 @@ router.post("/register", async (req, res) => {
 
         res.status(201).json({ token, user: { id: user._id, email: user.email } });
     } catch (err) {
+        // Two simultaneous registrations can both pass the findOne check; the unique
+        // index then rejects the loser with a duplicate-key error.
+        if (err.code === 11000)
+            return res.status(409).json({ error: "Email already registered" });
         console.log(err);
         res.status(500).json({ error: "Server error" });
     }

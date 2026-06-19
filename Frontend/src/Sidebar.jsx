@@ -4,6 +4,7 @@ import { MyContext } from "./MyContext.jsx";
 import { v1 as uuidv1 } from "uuid";
 import authFetch from "./utils/authFetch.js";
 import API_BASE from "./utils/api.js";
+import logo from "./assets/blacklogo.png";
 
 function Sidebar() {
     const { allThreads, setAllThreads, currThreadId, newChat, setNewChat, setPrompt, setStreamingReply, setCurrThreadId, setPrevChats, user, handleLogout } = useContext(MyContext);
@@ -64,7 +65,7 @@ function Sidebar() {
             <div className="sidebar-header">
                 <button className="new-chat-btn" onClick={createNewChat}>
                     <div className="btn-left">
-                        <img src="src/assets/blacklogo.png" alt="logo" className="logo" />
+                        <img src={logo} alt="logo" className="logo" />
                         <span className="btn-text">New Chat</span>
                     </div>
                     <i className="fa-solid fa-pen-to-square"></i>
