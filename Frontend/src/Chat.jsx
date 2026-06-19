@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import "highlight.js/styles/github-dark.css";
 import logo from "./assets/blacklogo.png";
+import RagDebugPanel from "./RagDebugPanel.jsx";
 
 const SUGGESTIONS = [
     "What are you working on right now?",
@@ -13,7 +14,7 @@ const SUGGESTIONS = [
     "What should I focus on today?",
 ];
 
-function Chat() {
+function Chat({ debugMode }) {
     const { newChat, prevChats, streamingReply, setPrompt } = useContext(MyContext);
     const chatEndRef = useRef(null);
 
@@ -74,6 +75,7 @@ function Chat() {
                                     >
                                         <i className="fa-regular fa-copy"></i>
                                     </button>
+                                    {debugMode && chat.rag && <RagDebugPanel trace={chat.rag} />}
                                 </>
                             )}
                         </div>

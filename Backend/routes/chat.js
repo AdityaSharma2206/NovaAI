@@ -9,6 +9,8 @@ const router = express.Router();
 
 const SUMMARY_THRESHOLD = 14;
 const RECENT_WINDOW = 6;
+const RAG_TOP_K = 3;      // how many of the highest-scoring memories we consider
+const RAG_THRESHOLD = 0.4; // minimum cosine similarity for a memory to be injected
 
 // ── Cosine similarity ────────────────────────────────────────────────────────
 const cosineSimilarity = (vecA, vecB) => {
@@ -138,7 +140,7 @@ router.delete("/thread/:threadId", async (req, res) => {
 
 // ── Main chat endpoint ───────────────────────────────────────────────────────
 router.post("/chat", async (req, res) => {
-    const { threadId, message } = req.body;
+    const { threadId, message, debug } = req.body;
     if (!threadId || !message) return res.status(400).json({ error: "Missing required fields" });
 
     try {
@@ -182,26 +184,52 @@ router.post("/chat", async (req, res) => {
         }
 
         // 3. Cross-thread RAG — search ALL of the user's past messages for relevant context
-        let ragContext = "";
-
         const allThreads = await Thread.find({ userId: req.user.userId }, "messages threadId");
-        const allUserMessages = allThreads.flatMap(t =>
+        const candidates = allThreads.flatMap(t =>
             t.messages
                 .filter(m => m.role === "user")
                 .map(m => ({ content: m.content, embedding: m.embedding }))
-        );
+        ).filter(m => m.embedding?.length > 0 && m.content !== message);
 
-        const topMatches = allUserMessages
-            .filter(m => m.embedding?.length > 0 && m.content !== message)
+        // Score every candidate against the query, then rank by similarity
+        const scored = candidates
             .map(m => ({ content: m.content, score: cosineSimilarity(m.embedding, messageEmbedding) }))
-            .sort((a, b) => b.score - a.score)
-            .slice(0, 3)
-            .filter(m => m.score > 0.4);
+            .sort((a, b) => b.score - a.score);
 
+        // Selected = the top-K that also clear the similarity threshold
+        const topMatches = scored.slice(0, RAG_TOP_K).filter(m => m.score > RAG_THRESHOLD);
+
+        let ragContext = "";
         if (topMatches.length > 0) {
             ragContext = `\n\nRelevant context from past conversations:\n` +
                 topMatches.map(m => `- "${m.content}"`).join("\n");
             console.log(`[RAG] Injected ${topMatches.length} semantic matches`);
+        }
+
+        // Optional retrieval trace for the RAG Debug View (only built when requested)
+        let ragTrace = null;
+        if (debug) {
+            const reasonFor = (rank, score) => {
+                if (rank <= RAG_TOP_K && score > RAG_THRESHOLD) return `Selected — top-${RAG_TOP_K} & ≥ ${RAG_THRESHOLD}`;
+                if (rank <= RAG_TOP_K) return `Rejected — in top-${RAG_TOP_K} but below ${RAG_THRESHOLD}`;
+                return `Rejected — outside top-${RAG_TOP_K}`;
+            };
+            const ranked = scored.map((m, i) => ({
+                rank: i + 1,
+                score: parseFloat(m.score.toFixed(3)),
+                content: m.content,
+                selected: i < RAG_TOP_K && m.score > RAG_THRESHOLD,
+                reason: reasonFor(i + 1, m.score)
+            }));
+            ragTrace = {
+                query: message,
+                params: { topK: RAG_TOP_K, threshold: RAG_THRESHOLD },
+                candidatesScored: scored.length,
+                selected: ranked.filter(r => r.selected),
+                rejected: ranked.filter(r => !r.selected).slice(0, 3), // a few near-misses
+                injectedContext: ragContext.trim(),
+                ragUsed: topMatches.length > 0
+            };
         }
 
         // 4. Build system prompt: base + user profile + optional summary + RAG
@@ -249,6 +277,11 @@ router.post("/chat", async (req, res) => {
                 upstreamController.abort();
             }
         });
+
+        // Send the retrieval trace first, so the client can show it alongside the reply
+        if (ragTrace && !clientGone) {
+            res.write(`data: ${JSON.stringify({ rag: ragTrace })}\n\n`);
+        }
 
         await getOpenAIStreamingResponse(
             recentMessages,

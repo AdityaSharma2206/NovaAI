@@ -1,0 +1,100 @@
+.rag-panel {
+    margin-top: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    font-size: 12px;
+}
+
+.rag-panel summary {
+    cursor: pointer;
+    padding: 8px 12px;
+    list-style: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    user-select: none;
+}
+
+.rag-panel summary::-webkit-details-marker { display: none; }
+
+.rag-summary-meta {
+    opacity: 0.6;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.rag-body { padding: 4px 12px 12px; }
+
+.rag-query {
+    margin-bottom: 10px;
+    opacity: 0.85;
+    word-break: break-word;
+}
+
+.rag-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.rag-row {
+    display: grid;
+    grid-template-columns: 20px 28px 46px 90px 1fr;
+    align-items: center;
+    gap: 8px;
+}
+
+.rag-rank { opacity: 0.6; }
+.rag-score { font-variant-numeric: tabular-nums; opacity: 0.8; }
+
+.rag-bar-track {
+    height: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.rag-bar-fill { height: 100%; background: rgba(255, 255, 255, 0.25); }
+.rag-bar-fill.selected { background: var(--accent-primary, #4caf50); }
+
+.rag-content {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0.9;
+}
+
+.rag-row.rejected .rag-content { opacity: 0.55; }
+
+.rag-reason {
+    grid-column: 1 / -1;
+    font-size: 11px;
+    opacity: 0.55;
+    padding-left: 28px;
+}
+
+.rag-injected { margin-top: 12px; }
+.rag-injected-label { opacity: 0.7; margin-bottom: 4px; }
+
+.rag-injected pre {
+    margin: 0;
+    padding: 8px;
+    border-radius: 6px;
+    background: rgba(0, 0, 0, 0.35);
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 11px;
+    opacity: 0.9;
+}
+
+.rag-empty {
+    opacity: 0.6;
+    font-style: italic;
+    padding: 4px 0;
+}

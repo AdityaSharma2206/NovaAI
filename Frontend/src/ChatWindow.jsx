@@ -17,6 +17,15 @@ function ChatWindow() {
     const [loading, setLoading]               = useState(false);
     const [isStreaming, setIsStreaming]       = useState(false);
     const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
+    const [debugMode, setDebugMode]           = useState(() => localStorage.getItem("ragDebug") === "true");
+
+    const toggleDebug = () => {
+        setDebugMode(prev => {
+            const next = !prev;
+            localStorage.setItem("ragDebug", String(next));
+            return next;
+        });
+    };
 
     const textareaRef = useRef(null);
     const abortRef = useRef(null);
@@ -51,7 +60,7 @@ function ChatWindow() {
         try {
             const response = await authFetch(`${API_BASE}/api/chat`, {
                 method: "POST",
-                body: JSON.stringify({ message: currentPrompt, threadId: currThreadId }),
+                body: JSON.stringify({ message: currentPrompt, threadId: currThreadId, debug: debugMode }),
                 signal: controller.signal
             });
             setLoading(false);
@@ -73,6 +82,7 @@ function ChatWindow() {
             const decoder = new TextDecoder();
             let buffer = "";
             let assembled = "";
+            let ragTrace = null;
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -90,11 +100,13 @@ function ChatWindow() {
                     try {
                         const parsed = JSON.parse(payload);
 
-                        if (parsed.token !== undefined) {
+                        if (parsed.rag) {
+                            ragTrace = parsed.rag;
+                        } else if (parsed.token !== undefined) {
                             assembled += parsed.token;
                             setStreamingReply(assembled);
                         } else if (parsed.done) {
-                            setPrevChats(prev => [...prev, { role: "assistant", content: assembled }]);
+                            setPrevChats(prev => [...prev, { role: "assistant", content: assembled, rag: ragTrace }]);
                             setStreamingReply("");
                             if (isFirstMessage) {
                                 setAllThreads(prev => prev.map(t =>
@@ -126,6 +138,15 @@ function ChatWindow() {
             <div className="navbar">
                 <span className="brand">NovaAI <i className="fa-solid fa-chevron-down"></i></span>
                 <div className="navbar-right">
+                    <div
+                        className="userIconDiv"
+                        onClick={toggleDebug}
+                        style={{ color: debugMode ? "var(--accent-primary)" : undefined }}
+                        title="Show what the retrieval system is doing"
+                    >
+                        <span className="userIcon"><i className="fa-solid fa-magnifying-glass"></i></span>
+                        <span className="nav-tool-label">RAG Debug{debugMode ? " · ON" : ""}</span>
+                    </div>
                     <div className="userIconDiv" onClick={() => setIsAnalyticsOpen(true)}>
                         <span className="userIcon"><i className="fa-solid fa-chart-line"></i></span>
                         <span className="nav-tool-label">Analytics</span>
@@ -136,7 +157,7 @@ function ChatWindow() {
             <AnalyticsDrawer isOpen={isAnalyticsOpen} onClose={() => setIsAnalyticsOpen(false)} />
 
             <div className="chat-content">
-                <Chat />
+                <Chat debugMode={debugMode} />
                 <div className="loader-container">
                     <ScaleLoader color="var(--accent-primary)" loading={loading} height={20} />
                 </div>
