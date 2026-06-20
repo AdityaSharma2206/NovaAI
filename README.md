@@ -9,6 +9,7 @@ A full-stack **MERN + AI** chat application with a personalized assistant that r
 ## ✨ Features
 
 - **Streaming chat (SSE)** — responses render token-by-token using hand-written Server-Sent Events parsing, with time-to-first-token measured.
+- **Stop & regenerate** — cancel an in-flight reply mid-stream (the upstream OpenAI request is aborted on both client and server), or regenerate the last answer, reusing the existing embedding to avoid a redundant call.
 - **Cross-conversation memory (RAG)** — every message is embedded; new questions are matched against your past messages via cosine similarity and the most relevant ones are injected into the prompt.
 - **RAG Debug View** — an optional toggle that shows exactly what the retrieval system did: which memories were scored, their similarity scores, why each was selected or rejected, and the final context injected into the prompt.
 - **Long-term user profile** — the assistant maintains a short, self-updating factual profile about you, distilled by the model from what you share.
@@ -150,7 +151,7 @@ VITE_API_URL=http://localhost:8080
 
 - **Retrieval scans all of a user's messages in-process.** This is intentional (so the cosine-similarity logic is visible and understandable) but won't scale to large histories — a production version would use a vector index (e.g. MongoDB Atlas Vector Search). The retrieval threshold (`0.4`) is a tunable starting point, not a tuned value.
 - **No automated tests yet.**
-- **Possible next features:** tool/function calling, an evaluation harness, and a stop/regenerate control.
+- **Possible next features:** tool/function calling and an evaluation harness.
 
 ---
 
